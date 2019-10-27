@@ -1,0 +1,159 @@
+---
+title: "Homework 02"
+author: "Stat 430, Fall 2017"
+date: "Due: Friday, September 15, 11:59pm"
+urlcolor: cyan
+---
+
+***
+
+## Exercise 1
+**load the data into R studio**
+
+```{r}
+library(Metrics)
+hw02_train_data = read.csv("hw02-train-data.csv")
+hw02_test_data=read.csv("hw02-test-data.csv")
+```
+
+**Fit the 20 models**
+
+```{r}
+mod_1 = lm(y~poly(x,degree=1), data=hw02_train_data)
+mod_2 = lm(y~poly(x,degree=2), data=hw02_train_data)
+mod_3 = lm(y~poly(x,degree=3), data=hw02_train_data)
+mod_4 = lm(y~poly(x,degree=4), data=hw02_train_data)
+mod_5 = lm(y~poly(x,degree=5), data=hw02_train_data)
+mod_6 = lm(y~poly(x,degree=6), data=hw02_train_data)
+mod_7 = lm(y~poly(x,degree=7), data=hw02_train_data)
+mod_8 = lm(y~poly(x,degree=8), data=hw02_train_data)
+mod_9 = lm(y~poly(x,degree=9), data=hw02_train_data)
+mod_10 = lm(y~poly(x,degree=10), data=hw02_train_data)
+mod_11 = lm(y~poly(x,degree=11), data=hw02_train_data)
+mod_12 = lm(y~poly(x,degree=12), data=hw02_train_data)
+mod_13 = lm(y~poly(x,degree=13), data=hw02_train_data)
+mod_14 = lm(y~poly(x,degree=14), data=hw02_train_data)
+mod_15 = lm(y~poly(x,degree=15), data=hw02_train_data)
+mod_16 = lm(y~poly(x,degree=16), data=hw02_train_data)
+mod_17 = lm(y~poly(x,degree=17), data=hw02_train_data)
+mod_18 = lm(y~poly(x,degree=18), data=hw02_train_data)
+mod_19 = lm(y~poly(x,degree=19), data=hw02_train_data)
+mod_20 = lm(y~poly(x,degree=20), data=hw02_train_data)
+```
+
+**Find the Train RMSE and the Test RMSE of these models**
+```{r}
+get_rmse = function(model, data, response){
+rmse(actual = data[, response], 
+     predicted = predict(model, data))
+}
+model_list = list(mod_1, mod_2, mod_3, mod_4, mod_5, mod_6, mod_7, mod_8, mod_9, mod_10, mod_11, mod_12, mod_13, mod_14, mod_15, mod_16, mod_17, mod_18, mod_19, mod_20)
+hw02_train_rmse = sapply(model_list, get_rmse, data=hw02_train_data, response="y")
+hw02_test_rmse = sapply(model_list, get_rmse, data=hw02_test_data, response="y")
+```
+
+**Plot the Train RMSE and the Test RMSE and the degrees of polynomials**
+```{r}
+degrees = c(1:20)
+plot(degrees, hw02_train_rmse, type = "l", col= "red",xlab="Polynomial Degrees", ylab="Error(RMSE)")
+lines(degrees, hw02_test_rmse, type = "l", col = "green")
+legend(0, 1.75, legend=c("Test RMSE", "Train RMSE"), col=c("green", "red"), lty=1:1, cex=0.8)
+```
+
+
+
+We can see from the graph that, when the polynomial degree is **5**, it has the lowest test RMSE, the model appears to be the best. When the model has a polynomial degree **greater than 5**, it's a more complex model with a **greater test RMSE**, so it's **overfitting**. When the model has a polynomial degree **smaller than 5**, it's a less complex model with a **greater test RMSE**, so it's **underfitting**. 
+
+## Exercise 2
+
+
+```{r}
+library(FNN)
+library(MASS)
+k = seq(5,50, by=5)
+```
+
+
+
+**Use the knn.reg() function from the KNN package, write two functions in order to predict the knn.reg predictions for different k values**
+```{r}
+rmse = function(actual, predicted) {
+  sqrt(mean((actual - predicted) ^ 2))
+}
+
+make_knn_pred = function(k = 1, training, predicting) {
+  pred = knn.reg(train = training["x"], 
+                      test = predicting["x"], 
+                      y = training$y, k = k)$pred
+  act  = predicting$y
+  rmse(predicted = pred, actual = act)
+}
+```
+
+
+**Calculate the knn Train RMSE and knn Test RMSE for different k values**
+```{r}
+knn_train_rmse = sapply(k, make_knn_pred, training = hw02_train_data, 
+                       predicting = hw02_train_data)
+
+
+knn_test_rmse = sapply(k, make_knn_pred, training = hw02_train_data, 
+                       predicting = hw02_test_data)
+```
+
+**Find the best k by finding out which k value has the smallest knn Test RMSE, any k value smaller than the best k value is overfitting, while the bigger ones are underfitting**
+```{r}
+best_k = k[which.min(knn_test_rmse)]
+fit_status = ifelse(k < best_k, "Over", ifelse(k == best_k, "Best", "Under"))
+```
+
+
+```{r}
+knn_results = data.frame(k, round(knn_train_rmse, 2), round(knn_test_rmse, 2), fit_status)
+colnames(knn_results) = c("k", "Train RMSE", "Test RMSE",  "Fit Status")
+```
+
+```{r}
+library(knitr)
+kable(knn_results)
+```
+
+When K is **15**, it has the smallest knn test RMSE, which makes it the best fitting model. When K is **smaller than 5**, the model is **overfitting**. And when K is **bigger than 5**, the model is **underfitting**. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

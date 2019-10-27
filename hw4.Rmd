@@ -1,0 +1,290 @@
+---
+title: "Homework 04"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, September 15, 11:59pm"
+urlcolor: cyan
+---
+
+***
+
+
+## Exercise 1
+**Load the data into R studio**
+```{r}
+library(Metrics)
+hw04_train_data = read.csv("hw04-trn-data.csv")
+hw04_test_data = read.csv("hw04-tst-data.csv")
+```
+
+**Write a simple function that compares variables to the boundary**
+```{r}
+simple_class = function(x, boundary, above = "1", below = "0") {
+  ifelse(x > boundary, above, below)
+}
+```
+
+**Work out the predictions for the first classifier**
+```{r}
+hw04_train_pred_1 = simple_class(x = hw04_train_data$x1, boundary = 0, 
+                               above = "dodgerblue", below = "darkorange")
+hw04_test_pred_1 = simple_class(x = hw04_test_data$x1, boundary = 0, 
+                                above = "dodgerblue", below = "darkorange")
+```
+
+**Work out the predictions for the second classifier**
+```{r}
+hw04_train_pred_2 = simple_class(x = hw04_train_data$x2, boundary = hw04_train_data$x1 + 1, above = "dodgerblue", below = "darkorange")
+
+hw04_test_pred_2 = simple_class(x = hw04_test_data$x2, boundary = 
+hw04_test_data$x1 + 1, above = "dodgerblue", below = "darkorange")
+
+
+```
+
+**Write a function for the third classifier**
+```{r}
+simple_class_1 = function(x, boundary_1, boundary_2, above = "1", below = "0") { ifelse((x > boundary_1) | (x < boundary_2), above, below)
+  }
+```
+
+**Work out the predictions for the third classifier**
+```{r}
+hw04_train_pred_3 = simple_class_1(x = hw04_train_data$x2, 
+boundary_1 = hw04_train_data$x1 + 1, boundary_2 = hw04_train_data$x1 -1, 
+above = "dodgerblue", below = "darkorange")
+
+hw04_test_pred_3 = simple_class_1(x = hw04_test_data$x2, 
+boundary_1 = hw04_test_data$x1 + 1, boundary_2 = hw04_test_data$x1 -1, 
+above = "dodgerblue", below = "darkorange")
+```
+
+**Fourth classifier**
+```{r}
+hw04_train_pred_4 = simple_class_1(x = hw04_train_data$x2, 
+boundary_1 = (hw04_train_data$x1 + 1)^2, 
+boundary_2 =- (hw04_train_data$x1 - 1)^2, 
+above = "dodgerblue" , below = "darkorange")
+
+hw04_test_pred_4 = simple_class_1(x = hw04_test_data$x2, 
+boundary_1 = (hw04_test_data$x1 + 1)^2, 
+boundary_2 = - (hw04_test_data$x1 -1)^2,
+above = "dodgerblue",  below = "darkorange")
+```
+
+**Calculate the train error rates for all classifiers**
+```{r}
+calc_class_err = function(actual, predicted) {
+  mean(actual != predicted)
+}
+
+train_error_1 = calc_class_err(actual = hw04_train_data $y,         predicted = hw04_train_pred_1)
+
+train_error_2 = calc_class_err(actual = hw04_train_data $y, 
+predicted = hw04_train_pred_2)
+
+train_error_3 = calc_class_err(actual = hw04_train_data $y, 
+predicted = hw04_train_pred_3)
+
+train_error_4 = calc_class_err(actual = hw04_train_data $y, 
+predicted = hw04_train_pred_4)
+```
+
+**Calculate the test error rates for all classifiers**
+```{r}
+test_error_1 = calc_class_err(actual = hw04_test_data $y, 
+predicted = hw04_test_pred_1)
+
+test_error_2 = calc_class_err(actual = hw04_test_data $y, 
+predicted = hw04_test_pred_2)
+
+test_error_3 = calc_class_err(actual = hw04_test_data $y, 
+predicted = hw04_test_pred_3)
+
+test_error_4 = calc_class_err(actual = hw04_test_data $y, 
+predicted = hw04_test_pred_4)
+```
+
+**Make a dataframe with the train errors and test errors from all the classifiers**
+```{r}
+classifier = c(1,2,3,4)
+
+train_error = c(train_error_1, train_error_2, train_error_3, train_error_4)
+
+test_error = c(test_error_1, test_error_2, test_error_3, test_error_4)
+result_1 = data.frame(classifier, train_error, test_error)
+colnames(result_1) = c("Classifier", "Train Error Rates", "Test Error Rates")
+```
+
+**Make a table from the data frame**
+```{r}
+library(knitr)
+kable(result_1)
+```
+
+
+# Exercise 2
+
+**Build four logistic models**
+```{r}
+model_1 = glm(y~1, data = hw04_train_data, family = "binomial")
+
+model_2 = glm(y~x1 + x2, data = hw04_train_data, family = "binomial")
+
+model_3 = glm(y~x1 + x2 + I(x1^2) + I(x2^2), data = hw04_train_data, family = "binomial")
+
+model_4 = glm(y~x1 + x2 + I(x1^2) + I(x2^2) + I(x1*x2), data = hw04_train_data, family = "binomial")
+
+```
+
+**Make train predictions for these four models**
+```{r}
+model_1_pred_train = ifelse(predict(model_1, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_2_pred_train = ifelse(predict(model_2, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_3_pred_train = ifelse(predict(model_3, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_4_pred_train = ifelse(predict(model_4, type = "response") > 0.5, "dodgerblue", "darkorange")
+```
+
+
+
+**Make test predictions for these four models**
+```{r}
+model_1_pred_test = ifelse(predict(model_1, newdata = hw04_test_data, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_2_pred_test = ifelse(predict(model_2, newdata = hw04_test_data, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_3_pred_test = ifelse(predict(model_3, newdata = hw04_test_data, type = "response") > 0.5, "dodgerblue", "darkorange")
+
+model_4_pred_test = ifelse(predict(model_4, newdata = hw04_test_data, type = "response") > 0.5, "dodgerblue", "darkorange")
+```
+
+**Calculate the train error rates for all four classifiers**
+```{r}
+model_1_train_error = calc_class_err(actual = hw04_train_data$y, predicted = model_1_pred_train)
+
+model_2_train_error = calc_class_err(actual = hw04_train_data$y, predicted = model_2_pred_train)
+
+model_3_train_error = calc_class_err(actual = hw04_train_data$y, predicted = model_3_pred_train)
+
+model_4_train_error = calc_class_err(actual = hw04_train_data$y, predicted = model_4_pred_train)
+```
+
+**Calculate the test error rates for all four classifiers**
+```{r}
+model_1_test_error = calc_class_err(actual = hw04_test_data$y, predicted = model_1_pred_test)
+
+model_2_test_error = calc_class_err(actual = hw04_test_data$y, predicted = model_2_pred_test)
+
+model_3_test_error = calc_class_err(actual = hw04_test_data$y, predicted = model_3_pred_test)
+
+model_4_test_error = calc_class_err(actual = hw04_test_data$y, predicted = model_4_pred_test)
+```
+
+**Make a data frame with the train errors, test errors and the models of the classifiers**
+```{r}
+model_names = c(1, 2, 3, 4)
+
+model_train_errors = c(model_1_train_error, model_2_train_error, 
+model_3_train_error, model_4_train_error)
+
+model_test_errors = c(model_1_test_error, model_2_test_error, model_3_test_error, model_4_test_error)
+
+result_2 = data.frame(model_names, model_train_errors, model_test_errors)
+colnames(result_2) = c("Model", "Train Error Rates", "Test Error Rates")
+```
+
+
+**Make a table from the data frame**
+```{r}
+kable(result_2)
+```
+
+
+
+## Exercise 3
+
+**Make the simulation**
+```{r}
+f = function(x1, x2){ exp(1 + 2*x1 - 1*x2) / (1+ exp(1 + 2*x1 -1 *x2))}
+make_sim_data= function(n_obs = 25){
+  x1 = runif(n = n_obs, min = 0, max = 2)
+  x2 = runif(n = n_obs, min = 0, max = 4)
+  prob = exp(1 + 2*x1 - 1*x2) / (1+ exp(1 + 2*x1 -1 *x2))
+  y = rbinom(n = n_obs, size = 1, prob = prob)
+  data.frame(y, x1, x2)
+}
+```
+
+**We use model_1, model_2, and model_4 from the last question**
+```{r}
+set.seed(678146855)
+n_sims = 1000
+n_models = 3
+x = data.frame(x1 = 1, x2 = 1)
+predictions = matrix(0, nrow = n_sims, ncol = n_models)
+```
+
+**Make 1000 predictions with the 3 new models**
+```{r}
+for (sim in 1:n_sims){
+  sim_data = make_sim_data()
+new_model_1 = glm(y~1, data = sim_data, family = "gaussian")
+new_model_2 = glm(y~x1+x2, data = sim_data, family = "gaussian")
+new_model_3 = glm(y~x1+x2+I(x1^2)+I(x2^2)+I(x1*x2), data = sim_data, family = "gaussian")
+
+predictions[sim, 1] = predict(new_model_1, x)
+predictions[sim, 2] = predict(new_model_2, x)
+predictions[sim, 3] = predict(new_model_3, x)
+}
+```
+
+**Write 3 functions to calculate the Mse, the bias and the variance for the 3 model**
+```{r}
+get_mse = function(truth, estimate) { mean((estimate - truth) ^ 2)}
+get_bias = function(estimate, truth) { mean(estimate) - truth }
+get_var = function(estimate) {mean((estimate - mean(estimate)) ^ 2)}
+```
+
+**Calculate the Mse, the bias and the variance for the 3 models**
+```{r}
+bias = apply(predictions, 2, get_bias, truth = f(x1 = 1, x2 = 1))
+variance = apply(predictions, 2, get_var)
+mse = apply(predictions, 2, get_mse, truth = f(x1 = 1, x2 = 1))
+```
+
+**Make a data frame from the Mses, the biases and variances of the 3 models**
+```{r}
+bias_squared = bias^2
+new_model_names = c(1, 2, 3)
+result_3 = data.frame(new_model_names, mse, bias_squared, variance)
+colnames(result_3) = c("Model", "Mean Squared Error", "Bias Squared", "Variance")
+```
+
+**Make a table from the data frame**
+```{r}
+kable(result_3)
+```
+
+# Exercise 4
+
+**(a)** We can see from our results that, the **decision boundaries for Classifiers 1, 2 and 3 are linear**, while the **boundary for Classifier 4 is non-linear**, since Classifier 4 performs the best, we can say that the true decision boundaries are **non-linear**. 
+
+
+**(b)** **Model 4** has performs the best because it has a **much smaller Test Error Rate** than the rest of the 3 models.  
+
+**(c)** **Models 1, 2 and 3 are underfitting** because they have bigger Test Error Rates and smaller parameters than **Model 4**. 
+
+**(d)** **None of the models are overfitting ** because they have bigger Test Error Rates and have less parameters than **Model 4**
+
+**(e)** We can see from the result that models 2 and 3 have very small Bias-Squareds, very close to 0, so we can conclude that **models 2 and 3 perform unbiased estimation**. 
+
+**(f)** Since **model 2** has the smallest Mean Square Error among all the models, we can conclude that **model 2 performs the best**. 
+
+
+  
+
+
+
+

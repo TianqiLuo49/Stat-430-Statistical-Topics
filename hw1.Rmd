@@ -1,0 +1,251 @@
+---
+title: "Homework 01"
+author: "Stat 430, Fall 2017"
+date: 'Due: Friday, September 15, 11:59pm'
+urlcolor: cyan
+---
+
+***
+
+## Exercise 1
+
+Load the data into R studio
+
+```{r}
+hw01_data = read.csv("hw01-data.csv")
+library(Metrics)
+
+```
+
+We can see that hw01_data has 1000 observations of 5 variables
+
+**Use the following code to test-train split the data**
+
+```{r}
+set.seed(42)
+train_index = sample(1:nrow(hw01_data),size = round(0.5*nrow(hw01_data)))
+train_data = hw01_data[train_index, ]
+test_data = hw01_data[-train_index, ]
+```
+
+
+**Fit the four linear models with the testing data**
+
+```{r}
+mod_1 = lm(y~., data = train_data)
+mod_2 = lm(y~.+I(a^2)+I(b^2)+I(c^2), data = train_data)
+mod_3 = lm(y~.^2+I(a^2)+I(b^2)+I(c^2), data = train_data)
+mod_4 = lm(y~a*b*c*d+I(a^2)+I(b^2)+I(c^2), data = train_data)
+```
+
+**Use the functions to figure out the Train RSME, Test RMSE, the number of varaibles and make a list of all the values**
+
+
+```{r}
+test_data
+```
+
+
+
+```{r}
+get_rmse = function(model, data, response){
+rmse(actual = data[, response], 
+     predicted = predict(model, data))
+}
+```
+
+```{r}
+get_complexity = function(model){
+length(coef(model))
+}
+```
+
+model_list = list(mod_1, mod_2, mod_3, mod_4)
+train_rmse = sapply(model_list, get_rmse, data=train_data, response="a")
+test_rmse = sapply(model_list, get_rmse, data=test_data, response="a")
+model_complexity = sapply(model_list, get_complexity)
+model_name = c("mod_1", "mod_2", "mod_3", "mod_4")
+```
+
+**Build a dataframe with Model Name, Train RMSE, Test RMSE, and Predictors, and convert them into a data table**
+
+```{r}
+
+library(knitr)
+dfrm = data.frame(model_name, train_rmse, test_rmse, model_complexity)
+names(dfrm) = c("Model", "Train RMSE", "Test RMSE", "Predictors")
+kable(dfrm)
+```
+
+We can see that mod_3 performs the best because it has the smallest test RMSE
+
+## Exercise 1 not graded question 
+
+*Fit a model 5*
+
+```{r}
+mod_5 = lm(y~.^2+I(a^2)+I(b^2)+I(c^2)+I(a^3), data = train_data)
+```
+
+**Find the test RMSE for model 5**
+```{r}
+rmse(actual = test_data$y, predicted = predict(mod_5, test_data))
+```
+
+
+Model 5 has a test RMSE of 0.5206526, which is smaller than the RMSE of model 3(0.5206716), so it's a better model
+
+
+## Exercise 2
+
+```{r}
+library(MASS)
+library(tibble)
+data(Boston)
+Boston = as_tibble(Boston)
+```
+
+**Use the following code to test-train split the data**
+```{r}
+set.seed(42)
+boston_index = sample(1:nrow(Boston), size = 400)
+train_boston = Boston[boston_index,]
+test_boston = Boston[-boston_index,]
+
+fit = lm(medv ~ . ^ 2, data = train_boston)
+rmse(actual = train_boston$medv,
+predicted = predict(fit, train_boston))
+rmse(actual = test_boston$medv, predicted = predict(fit, test_boston))
+```
+
+The fit model has a train RMSE of 2.623952 and a test RMSE of 3.2202.
+
+**Fit a larger model**
+```{r}
+fit_larger = lm(medv~.^2+I(rm^2)+I(age^2)+I(dis^2), data = train_boston)
+```
+**Find the Train RMSE of the larger model**
+```{r}
+rmse(actual = train_boston$medv, predicted = predict(fit_larger, train_boston))
+```
+**Find the Test RMSE of the larger model**
+```{r}
+rmse(actual = test_boston$medv, predicted = predict(fit_larger, test_boston))
+```
+The larger fit model has a train RMSE of 2.529957 and a test RMSE of 3.303289, since it has a larger test RMSE, it works for this question.
+
+
+
+**Fit a smaller model**
+```{r}
+fit_smaller = lm(medv~rm+age+dis, data = train_boston)
+```
+**Find the Train RMSE of the smaller model**
+```{r}
+rmse(actual = train_boston$medv, predicted = predict(fit_smaller, train_boston))
+```
+
+**Find the Test RMSE of the smaller model**
+```{r}
+rmse(actual = test_boston$medv, predicted = predict(fit_smaller, test_boston))
+```
+The smaller fit model has a train RMSE of 6.178981 and a test RMSE of 6.637529, since it has a larger test RMSE than the original fit model, it works for this quesstion.
+
+**Use the get_rmse and get_complexity functions from Exercise 1, find the Train RMSE, Test RMSE and Predictors for both three model**
+```{r}
+boston_model_list = list(fit, fit_smaller, fit_larger) 
+boston_train_rmse = sapply(boston_model_list, get_rmse, data = train_boston, response = "medv")
+boston_test_rmse = sapply(boston_model_list, get_rmse, data = test_boston, response = "medv")
+boston_test_rmse
+boston_model_complexity = sapply(boston_model_list, get_complexity)
+boston_model_name = c("Fit", "Fit_smaller", "Fit_larger")
+```
+**Create a dataframe from all the values**
+```{r}
+boston_dfrm = data.frame(boston_model_name, boston_train_rmse, boston_test_rmse, boston_model_complexity)
+names(boston_dfrm) = c("Model", "Train RMSE", "Test RMSE", "Predictors")
+```
+**Change the data frame into a data table**
+```{r}
+library(knitr)
+kable(boston_dfrm)
+```
+
+
+##Exercise 3
+
+**(a)**
+
+**Add a new column with the residuals of the observations to train_station to make a new data frame**
+
+```{r}
+residuals = rstandard(fit)
+```
+
+**Build two new data frames, one removing observations with absolute standardized residuals greater than 2, the other with absolute standardized residuals greater than 3**
+
+```{r}
+Boston_2 = train_boston[(abs(residuals)) <= 2,]
+Boston_3 = train_boston[(abs(residuals)) <= 3,]
+
+```
+Boston_2 has 381 observations, and Boston_3 has 395, and the original train_boston_2 has 400 observations. So Boston_2 has *19* observations removed, and Boston_3 has *5* observations removed. 
+
+
+
+**Fit two new models with the new data frames**
+
+```{r}
+fit2 = lm(medv~.^2,data = Boston_2) 
+fit3 = lm(medv~.^2,data = Boston_3)
+```
+
+
+**Calculate the test RMSE for Fit2**
+
+```{r}
+rmse(actual = test_boston$medv, predicted = predict(fit2, test_boston))
+```
+
+
+**Calculate the test RMSE for Fit3**
+```{r}
+rmse(actual = test_boston$medv, predicted = predict(fit3, test_boston))
+```
+
+
+**Put all the required values into vectors, and then together into a data frame**
+```{r}
+test_rmse_fit = rmse(actual = test_boston$medv, predicted = predict(fit, test_boston))
+test_rmse_fit2 = rmse(actual = test_boston$medv, predicted = predict(fit2, test_boston))
+test_rmse_fit3 = rmse(actual = test_boston$medv, predicted = predict(fit3, test_boston))
+data_deleted = c(0,19,5)
+test_rmse_all = c(test_rmse_fit, test_rmse_fit2, test_rmse_fit3)
+mod_name = c ("Fit", "Fit2", "Fit3")
+boston_dfrm_2 = data.frame(mod_name, test_rmse_all,data_deleted)
+names(boston_dfrm_2) = c("Model", "Test RMSE", "Observations Removed")
+```
+**Make the data frame into a table**
+```{r}
+kable(boston_dfrm_2)
+```
+
+From the test RMSE, we can see that Fit2 has the smallest RMSE, so it performs the best
+
+
+**(b)**
+
+**Build the new given data into a new data frame Boston_3_new_data, since residuals is excluded from Fit2, we'll assign it with a random number**
+
+```{r}
+Boston_3_new_data = data.frame(crim = 0.02763, zn = 75.0, indus = 3.95, chas= 0, nox = 0.4280, rm = 6.595, age = 22.8, dis = 5.4011, rad= 3, tax = 252, ptratio = 19.3, black = 395.63, lstat = 4.32)
+```
+**Use the new data frame to predict the new value and its prediction interval**
+```{r}
+predict(fit2, newdata = Boston_3_new_data, interval = "prediction", level = 0.99)
+```
+
+We can see from the values, the predicted value of medv is 27.52639, with a lower bound of 21.03786 and a upper bound of 34.01491.
+
+fit = lm(y~1, data = hw04_train_data)
+

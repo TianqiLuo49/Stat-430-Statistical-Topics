@@ -1,0 +1,237 @@
+---
+title: "Homework 03"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, September 15, 11:59pm"
+urlcolor: cyan
+---
+
+***
+
+
+## Exercise 1
+**Load the data into R studio**
+```{r}
+library (Metrics)
+hw03_train_data = read.csv("hw03-train-data.csv")
+hw03_test_data = read.csv("hw03-test-data.csv")
+```
+
+**We'll use all the predictors in the homework 3 train data and test data**
+```{r}
+x_hw03_train_data = hw03_train_data[, !names(hw03_train_data) %in% c("y")]
+x_hw03_test_data = hw03_test_data[, !names(hw03_test_data) %in% c("y")]
+y_hw03_train_data = hw03_train_data["y"]
+y_hw03_test_data = hw03_test_data["y"]
+```
+
+**We'll use all the values above to calculate the test RMSE, both scaled and unscaled for k=1**
+```{r}
+library(FNN)
+k_1_scaled_pred = knn.reg(train = scale(x_hw03_train_data), test=scale(x_hw03_test_data), y = y_hw03_train_data, k = 1)$pred
+
+k_1_unscaled_pred = knn.reg(train = x_hw03_train_data, test=x_hw03_test_data, y = y_hw03_train_data, k = 1)$pred
+
+k_1_scaled_rmse = rmse(predicted = k_1_scaled_pred, actual = y_hw03_test_data)
+
+k_1_unscaled_rmse = rmse(predicted = k_1_unscaled_pred, actual = y_hw03_test_data)
+```
+
+**Do the same for k=5**
+```{r}
+k_5_scaled_pred = knn.reg(train = scale(x_hw03_train_data), test=scale(x_hw03_test_data), y=y_hw03_train_data, k = 5)$pred
+
+k_5_unscaled_pred = knn.reg(train = x_hw03_train_data, test=x_hw03_test_data, y = y_hw03_train_data, k = 5)$pred
+
+k_5_scaled_rmse = rmse(predicted = k_5_scaled_pred, actual = y_hw03_test_data)
+
+k_5_unscaled_rmse = rmse(predicted = k_5_unscaled_pred, actual = y_hw03_test_data)
+```
+
+**Do the same for k=25**
+```{r}
+k_25_scaled_pred = knn.reg(train = scale(x_hw03_train_data), test=scale(x_hw03_test_data), y=y_hw03_train_data, k = 25)$pred
+
+k_25_unscaled_pred = knn.reg(train = x_hw03_train_data, test=x_hw03_test_data, y = y_hw03_train_data, k = 25)$pred
+
+k_25_scaled_rmse = rmse(predicted = k_25_scaled_pred, actual = y_hw03_test_data)
+
+k_25_unscaled_rmse = rmse(predicted = k_25_unscaled_pred, actual = y_hw03_test_data)
+```
+
+**Make a dataframe from test RMSE, k and the scaling status**
+```{r}
+K = c(1, 1, 5, 5, 25, 25)
+test_rmse = c(k_1_scaled_rmse, k_1_unscaled_rmse, k_5_scaled_rmse, k_5_unscaled_rmse, k_25_scaled_rmse, k_25_unscaled_rmse)
+scaling_status = c("Scaled", "Unscaled", "Scaled", "Unscaled", "Scaled", "Unscaled")
+scaling_results = data.frame(K, test_rmse, scaling_status)
+colnames(scaling_results) = c("K", "Test RMSE", "Scaling Status")
+```
+
+**Make a table from the data frame**
+```{r}
+library(knitr)
+kable(scaling_results)
+```
+
+
+## Exercise 2
+
+**Set up the "ISLR" package and the test data**
+```{r}
+library(ISLR)
+auto = Auto[, !names(Auto) %in% c("names")]
+
+set.seed(42)
+auto_idx = sample(1:nrow(auto), size = round(0.5 * nrow(auto)))
+auto_train = auto[auto_idx, ]
+auto_test = auto[-auto_idx, ]
+auto_train $ name = NULL
+auto_test $name = NULL
+```
+
+**Fit the additive linear model**
+```{r}
+auto_fit = lm(mpg ~ . , data = auto_train)
+```
+
+**Work out the Test RMSE for the linear model**
+```{r}
+get_rmse = function(model, data, response) {
+  rmse(actual = data[, response], 
+       predicted = predict(model, data))
+}
+
+get_rmse(auto_fit, data = auto_test, response = "mpg")
+```
+We can see from the Test RMSE for the model equals to *3.068489*
+
+
+
+**Now we need to choose the right k which has a smaller Test RMSE than the model above**
+
+
+
+**We use k=25 from above with the new train and test data to work out the Test RMSE for both the scaled and unscaled data**
+```{r}
+
+y_auto_train = auto_train["mpg"]
+y_auto_test = auto_test["mpg"]
+
+auto_k_25_scaled_pred = knn.reg(train = scale(auto_train), test=scale(auto_test), y=y_auto_train, k = 25)$pred
+
+auto_k_25_unscaled_pred = knn.reg(train = auto_train, test=auto_test, y = y_auto_train, k = 25)$pred
+
+```
+
+**Calculate the Test RMSE for the Scaled Data when K=25**
+```{r}
+auto_k_25_scaled_rmse = rmse(predicted = auto_k_25_scaled_pred, actual = y_auto_test)
+
+auto_k_25_scaled_rmse
+```
+
+Since **2.419693** is smaller than **3.068489**, this model is better than the linear model. 
+
+
+**Calculate the Test RMSE for the Unscaled Data when K=25**
+```{r}
+auto_k_25_unscaled_rmse = rmse(predicted = auto_k_25_unscaled_pred, actual = y_auto_test)
+
+auto_k_25_unscaled_rmse
+```
+
+Since **4.014326** is greater than **3.068489**, this model is worse than the linear model. 
+
+We can see from above that, when **K=25, with a scaled X data**, the k-nearest neighbors model outperforms the additive linear model. 
+
+
+## Exercise 3
+
+**Derive the train data for the simulation**
+```{r}
+
+f = function(x) { x ^ 2}
+
+get_sim_data = function(f, sample_size = 100) {
+  x = runif(n = sample_size, min = 0, max = 1)
+  y = rnorm(n = sample_size, mean = f(x), sd = 0.3)
+  data.frame(x, y)
+}
+```
+
+
+**Set up the simulation**
+```{r}
+set.seed(678146855)
+n_sims = 500
+n_models = 3
+x = data.frame(x = 0.90)
+predictions = matrix(0, nrow = n_sims, ncol = n_models)
+```
+
+
+**Evaluate the predictions from the simulation with the 3 K-nearest neighbor regression models with k=1, 10, and 100**
+```{r}
+for(sim in 1:n_sims) {
+sim_data = get_sim_data(f)
+pred_001 = knn.reg(train = sim_data["x"], test = x, y = sim_data["y"], k = 1)
+pred_010 = knn.reg(train = sim_data["x"], test = x, y =sim_data["y"] , k = 10)
+pred_100 = knn.reg(train = sim_data["x"] , test = x, y = sim_data["y"], k = 100)
+
+predictions[sim, 1] = pred_001$pred
+predictions[sim, 2] = pred_010$pred
+predictions[sim, 3] = pred_100$pred
+}                                  
+```
+
+
+**Define the functions to calculate the MSE, the Bias and the Variance**
+```{r}
+get_mse = function(truth, estimate) {
+  mean((estimate - truth) ^ 2)
+}
+
+
+get_bias = function(estimate, truth) {
+  mean(estimate) - truth
+}
+
+get_var = function(estimate) {
+  mean((estimate - mean(estimate)) ^ 2)
+}
+```
+
+
+**Use the functions defined above to calculate MSE, Bias and Variance for the 3 models**
+```{r}
+bias = apply(predictions, 2, get_bias, truth = f(x = 0.90))
+variance = apply(predictions, 2, get_var)
+mse = apply(predictions, 2, get_mse, truth = f(x = 0.90))
+bias_squared = (bias)^2
+k= c(1, 10, 100)
+simulation_results = data.frame(k, bias_squared, variance, mse)
+colnames(simulation_results) = c("K", "Bias_Squared", "Variance", "Mse")
+kable(simulation_results)
+```
+
+## Exercise 4
+
+**(a)** According to the results from the table, when K=5 with an unscaled X data, the model performs the best because it has the smallest Test RMSE. 
+
+
+
+**(b)** According to the results, scaling was not appropriate because they have bigger Test RMSEs than their unscaled countparts with each respective K, which means they perform worse. 
+
+
+
+**(c)** Linear models assume the dependent variables and the independent variables have strong linear relationship, while nearest neighbors model is basically assumption-free. In this case, nearest neighbors model works better because the relationship between mpg and the other elements are complex and do not specifically have a patterned relationship.
+
+
+
+
+**(d)** When k=1 and 10, the nearest neighbor model has closer biases to 0, so these two models essentially providing unbiased prediction. 
+
+
+
+
+**(e)** When K=10, the nearest neighbor model has the smallest MSE, so it's predicting best at x=0.90. 

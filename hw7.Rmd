@@ -1,0 +1,321 @@
+---
+title: "Homework 07"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, November 3, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+**Load the packages**
+```{r}
+library(Metrics)
+library(lattice)
+library(ggplot2)
+library(caret)
+library(mlbench)
+
+```
+
+
+**Load the train and the test data**
+```{r}
+data(Boston, package = "MASS")
+set.seed(42)
+boston_idx = createDataPartition(Boston$medv, p = 0.80, list = FALSE)
+boston_train_data = Boston[boston_idx, ]
+boston_test_data = Boston[-boston_idx, ]
+```
+
+
+
+**Calculate KNN model without scaling cross_validated RMSEs, and plot the results**
+```{r}
+set.seed(1337)
+boston_knn_unscaled = train(
+  medv ~ .,
+  data = boston_train_data,
+  method = "knn",
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(k = c(1, 5, 10, 15, 20, 25))
+)
+
+x = boston_knn_unscaled$results[, "RMSE"]
+boston_knn_unscaled_rmse = x[which.min(x)]
+plot(boston_knn_unscaled)
+```
+
+
+
+**Get the best K from KNN without predictor scaling**
+```{r}
+
+get_best_result = function(caret_fit) {
+  best_result = caret_fit$results[as.numeric(rownames(caret_fit$bestTune)), ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+get_best_result(boston_knn_unscaled)
+```
+
+
+**Calculate the cross-validated RMSEs for scaled KNN model, and plot the results**
+```{r}
+set.seed(1337)
+boston_knn_scaled = train(
+  medv ~ .,
+  data = boston_train_data,
+  method = "knn",
+  trControl = trainControl(method = "cv", number = 5),
+  preProcess = c("center", "scale"),
+  tuneGrid = expand.grid(k = c(1, 5, 10, 15, 20, 25))
+)
+
+x = boston_knn_scaled$results[, "RMSE"]
+boston_knn_scaled_rmse = x[which.min(x)]
+plot(boston_knn_scaled)
+```
+
+
+**Get the best K for KNN model with predictor scaling**
+```{r}
+get_best_result = function(caret_fit) {
+  best_result = caret_fit$results[as.numeric(rownames(caret_fit$bestTune)), ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+get_best_result(boston_knn_scaled)
+```
+
+
+
+**Calculate the RMSE for the Additive Model**
+```{r}
+set.seed(1337)
+boston_lm = train(medv ~., 
+                      data = boston_train_data, 
+                      method = "lm",
+                   trControl = trainControl(method = "cv", number = 5))
+
+x = boston_lm$results[, "RMSE"]
+boston_lm_rmse = x[which.min(x)]
+
+
+```
+
+
+**Calculate the RMSE for the Random Forest Model**
+```{r}
+library(randomForest)
+set.seed(1337)
+boston_rf = train(
+  medv ~ .,
+  data = boston_train_data,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 5)
+  
+  )
+
+
+
+x = boston_rf$results[, "RMSE"]
+boston_rf_rmse = x[which.min(x)]
+boston_rf_rmse
+
+```
+
+
+**Calculate the cross-validated RMSE for the Boosted Tree Model, and plot the results**
+```{r}
+set.seed(1337)
+library(splines)
+library(parallel)
+library(survival)
+library(gbm)
+
+gbm_grid = expand.grid(interaction.depth = c(1, 2, 3), 
+                         n.trees = (1:20) * 100, 
+                         shrinkage = c(0.1, 0.3), 
+                         n.minobsinnode = 20)
+
+boston_gbm = train(
+  medv ~ .,
+  data = boston_train_data, 
+  method = "gbm",
+  trControl = trainControl(method = "cv", number = 5), 
+  tuneGrid = gbm_grid,
+  verbose = FALSE,
+  metric = "RMSE"
+)
+
+x = boston_gbm$results[, "RMSE"]
+boston_gbm_rmse = x[which.min(x)]
+
+plot(boston_gbm)
+
+```
+
+
+
+**Get the best parameters for the Boosted Tree Model**
+```{r}
+boston_gbm$bestTune
+```
+
+
+**Calculate the test RMSEs for all the models**
+```{r}
+get_rmse = function(model, data, response){
+rmse(actual = data[, response], 
+     predicted = predict(model, data))
+}
+model_list = list(boston_lm, boston_knn_scaled, boston_knn_unscaled, boston_rf, boston_gbm)
+
+boston_test_rmse = sapply(model_list, get_rmse, data=boston_test_data, response="medv")
+```
+
+**Make a table from all the results**
+```{r}
+library(knitr)
+cross_validated_rmse = c(boston_lm_rmse, boston_knn_unscaled_rmse, boston_knn_scaled_rmse, boston_rf_rmse, boston_gbm_rmse)
+models = c("Additive Linear Regression", "Unscaled KNN", "Scaled KNN", 
+"Random Forest", "Boosted Tree")
+result = data.frame(models, cross_validated_rmse, boston_test_rmse)
+colnames(result) = c("Model", "Cross-Validated RMSE", "Test RMSE")
+kable(result)
+```
+
+## Exercise 2
+
+**Load the data**
+```{r}
+set.seed(42)
+sim_train = mlbench::mlbench.2dnormals(n = 750, cl = 5)
+sim_train = data.frame(
+  classes = sim_train$classes,
+  sim_train$x
+)
+
+```
+
+**Plot the scatterplot**
+```{r}
+caret::featurePlot(x = sim_train[, -1], 
+            y = sim_train$classes, 
+            plot = "pairs",
+            auto.key = list(columns = 2))
+```
+
+**Train the LDA model, and calculate its Accuracy and Standard Deviation**
+```{r}
+set.seed(1337)
+train_lda = train(classes ~., 
+                      data = sim_train, 
+                      method = "lda",
+                   trControl = trainControl(method = "cv", number = 10))
+
+train_lda_accuracy = train_lda$results[, "Accuracy"]
+train_lda_sd = train_lda$results[, "AccuracySD"]
+
+```
+
+**Train the QDA model, and calculate its Accuracy and Standard Deviation**
+```{r}
+set.seed(1337)
+train_qda = train(classes ~., 
+                      data = sim_train, 
+                      method = "qda",
+                   trControl = trainControl(method = "cv", number = 10))
+
+train_qda_accuracy = train_qda$results[, "Accuracy"]
+train_qda_sd = train_qda$results[, "AccuracySD"]
+```
+
+**Train the Naive Bayes model, and calculate its Accuracy and Standard Deviation**
+```{r}
+set.seed(1337)
+library(klaR)
+train_nb = train(classes ~., 
+                      data = sim_train, 
+                      method = "nb",
+                   trControl = trainControl(method = "cv", number = 10))
+
+
+train_nb_accuracy =train_nb$results[as.numeric(rownames(train_nb$bestTune)), "Accuracy"]
+
+train_nb_sd = train_nb$results[as.numeric(rownames(train_nb$bestTune)), "AccuracySD"]
+```
+
+
+
+**Train the RDA model, and calculate its Accuracy and Standard Deviation**
+```{r}
+set.seed(1337)
+
+train_rda = train(classes ~., 
+                      data = sim_train, 
+                      method = "rda",
+                   trControl = trainControl(method =
+                                              "cv", number = 10))
+train_rda_accuracy =train_rda$results[as.numeric(rownames(train_rda$bestTune)), "Accuracy"]
+
+train_rda_sd = train_rda$results[as.numeric(rownames(train_rda$bestTune)), "AccuracySD"]
+plot(train_rda)
+```
+
+**Get the tuning parameters with the best value in RDA model**
+```{r}
+train_rda$bestTune
+```
+
+
+
+**Make a table from the results**
+```{r}
+cross_validated_accuracy = c(train_lda_accuracy, train_qda_accuracy, train_nb_accuracy, train_rda_accuracy)
+
+accuracy_standard_deviation = c(train_lda_sd, train_qda_sd, train_nb_sd, train_rda_sd)
+
+models = c("LDA", "QDA", "Naive Bayes", "RDA")
+
+result = data.frame(models, cross_validated_accuracy, accuracy_standard_deviation)
+
+colnames(result) = c("Model", "Cross-Validated Accuracy", "Accuracy Standard Deviations")
+
+kable(result)
+```
+
+
+
+
+## Exercise 3
+
+## Regression
+**(a)** For KNN without predictor scaling,  **k=5** is chosen because it gives the smallest cross-validated RMSE value. 
+
+**(b)** For KNN with predictor scaling, **k=10** is chosen because it gives the smallest cross-validated RMSE value. 
+
+**(c)** For the boosted tree model, we choose the tuning parameters **interaction depth = 3**, **n.trees = 200**, **shrinkage = 0.3** and **n.minobsinnode = 20** because they give the smallest cross-validated RMSE value. 
+
+**(d)** According to our result, **random forest** achieves the lowest cross-validated error. 
+
+**(e)** According to our result, **random forest** achieves the lowest test error. 
+
+
+## Classification
+**(f)** **Gamma = 1.0** and **"Lambda = 1.0"** are chosen because it gives the best accuracy. 
+
+
+**(g)** Based on the scatterplot, it's more appropriate to choose **LDA** because QDA assumes the predictors have different covariance matrices, whereas LDA assumes that all the variables have a common covariance matrix. We can see from the scatterplot that all the variables have **similar variances**, so in this case **LDA** is **slightly more accurate**. 
+
+
+**(h)** Based on the scatterplot, it's more appropriate to choose **Naive Bayes** because Naive Bayes assumes that all the predictors are **independent**, we can see from the scatterplot that the **distribution of classes** do not **form a pattern** with the **distribution of x1 and x2**, hence we can assume that the predictors are **basically independent**. 
+
+**(i)** We can see from the result that, **RDA** achieves the best cross-validated accuracy. 
+
+**(j)** I belive **RDA** is indeed the best model to be chosen. As we can see from the scatterplot, the predictors have **similar variances**, but not completely the same. Also, while we can assume the **predictors are independent**, we're not sure it's **completely independent** . RDA is the best to use since it **shrinks the separate covariances of QDA towards a cmmon covariance matrix**, it provides an **intermediate between LDA and QDA**, which is the best in this case. 
+
+
+

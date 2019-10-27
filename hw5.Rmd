@@ -1,0 +1,280 @@
+---
+title: "Homework 05"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, October 12, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+**Load the data into R studio, and set independent and dependent variables for the test and train data**
+```{r}
+library(Metrics)
+wisc_train_data = read.csv("wisc-trn.csv")
+wisc_test_data = read.csv("wisc-tst.csv")
+x_wisc_train_data = wisc_train_data[,-1]
+y_wisc_train_data = wisc_train_data$class
+x_wisc_test_data = wisc_test_data[,-1]
+y_wisc_test_data = wisc_test_data$class
+```
+
+
+**Write a function to calculate the error rates**
+```{r}
+set.seed(314)
+
+calc_class_err = function(actual, predicted) {
+  mean(actual != predicted)
+}
+```
+
+**Write a for loop to make predictions for the test data and the train data, and calculate the test errors and train errors for every k**
+```{r}
+library(FNN)
+k_to_try = seq(1,51,2)
+test_err_k = rep(x = 0, times = length(k_to_try))
+train_err_k = rep(x = 0, times = length(k_to_try))
+for (i in seq_along(k_to_try)) { 
+  pred_test = knn(train = x_wisc_train_data, 
+             test  = x_wisc_test_data, 
+             cl    = y_wisc_train_data, 
+             k     = k_to_try[i])
+  
+  pred_train = knn(train = x_wisc_train_data, 
+             test  = x_wisc_train_data, 
+             cl    = y_wisc_train_data, 
+             k     = k_to_try[i])
+  test_err_k[i] = calc_class_err(y_wisc_test_data, pred_test)
+  train_err_k[i] = calc_class_err(y_wisc_train_data, pred_train)
+}
+```
+
+**Plot each test error and train error with their respective Ks**
+```{r}
+plot(train_err_k, type = "b", col = "dodgerblue", cex = 1, pch = 20, 
+     xlab = "k, number of neighbors", ylab = "classification error",
+     main = " Error Rates vs Neighbors", ylim = c(0, 0.2))
+lines(test_err_k, type = "b", col = "darkorange", cex = 1, pch = 20)
+legend(19, 0.05, legend = c("Train Error", "Test Error"), col = c("dodgerblue", "darkorange"), lty = 2:2, cex =0.8)
+```
+
+## Exercise 2
+
+**Plot symmetry on the y axis, radius on the x axis, the blue vertical lines as status M and the orange vertical lines as status B, and the solid vertical black line as the decision boundary with the 0.5 as a cutoff.**
+```{r}
+model_glm = glm(class ~ radius + symmetry, data = wisc_train_data, family = "binomial")
+plot(symmetry~radius, data = wisc_test_data, col = c('orange', 'blue')[as.numeric(wisc_test_data$class)], pch = "|", main = "Using Linear Regression for Classification", ylim = c(0.10, 0.40))
+abline(a = -coef(model_glm)[1] / coef(model_glm)[3], b = -coef(model_glm)[2]/ coef(model_glm)[3], lwd = 2)
+legend(23, 0.30, legend = c("B", "M"), col = c("orange", "blue"), pch = "|", cex = 0.8)
+```
+
+## Exercise 3
+
+
+**Fit a logistic model with the only two predictors radius and symmetry**
+```{r}
+model_glm = glm(class ~ radius + symmetry, data = wisc_train_data, family = "binomial")
+```
+
+**Write a function to get the logistic predictions for the logistic regression**
+```{r}
+get_logistic_pred = function(mod, data, res = "y", pos = 1, neg = 0, cut = 0.5) {
+  probs = predict(mod, newdata = data, type = "response")
+  ifelse(probs > cut, pos, neg)
+}
+```
+
+**Make the predictions for three classifiers when c=0.1, c=0.5, c=0.9**
+```{r}
+test_pred_10 = get_logistic_pred(model_glm, data = wisc_test_data, res = "class", 
+                                 pos = "M", neg = "B", cut = 0.1)
+test_pred_50 = get_logistic_pred(model_glm, data = wisc_test_data, res = "class", 
+                                 pos = "M", neg = "B", cut = 0.5)
+test_pred_90 = get_logistic_pred(model_glm, data = wisc_test_data, res = "class", 
+                                 pos = "M", neg = "B", cut = 0.9)
+```
+
+
+**Evaluate the accuracy, sensitivity and specificity for these classifiers**
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+
+test_tab_10 = table(predicted = test_pred_10, actual = wisc_test_data$class)
+test_tab_50 = table(predicted = test_pred_50, actual = wisc_test_data$class)
+test_tab_90 = table(predicted = test_pred_90, actual = wisc_test_data$class)
+
+test_con_mat_10 = confusionMatrix(test_tab_10, positive = "M")
+test_con_mat_50 = confusionMatrix(test_tab_50, positive = "M")
+test_con_mat_90 = confusionMatrix(test_tab_90, positive = "M")
+```
+
+```{r}
+test_tab_10
+```
+
+
+**Put the data together and make it into a table**
+```{r}
+library(knitr)
+metrics = rbind(
+  
+  c(test_con_mat_10$overall["Accuracy"], 
+    test_con_mat_10$byClass["Sensitivity"], 
+    test_con_mat_10$byClass["Specificity"]),
+  
+  c(test_con_mat_50$overall["Accuracy"], 
+    test_con_mat_50$byClass["Sensitivity"], 
+    test_con_mat_50$byClass["Specificity"]),
+  
+  c(test_con_mat_90$overall["Accuracy"], 
+    test_con_mat_90$byClass["Sensitivity"], 
+    test_con_mat_90$byClass["Specificity"])
+
+)
+
+rownames(metrics) = c("c = 0.10", "c = 0.50", "c = 0.90")
+kable(metrics)
+```
+
+
+
+## Exercise 4
+
+**Load the data into R studio**
+```{r}
+hw05_train_data = read.csv("hw05-trn.csv")
+hw05_test_data = read.csv("hw05-tst.csv")
+```
+
+
+**Create pairs plot with ellipses for the training data**
+```{r}
+library(ellipse)
+caret::featurePlot(x = hw05_train_data[, c("x1", "x2")], 
+                   y = hw05_train_data$y,
+                   plot = "ellipse",
+                   
+                   auto.key = list(columns = 3))
+```
+
+
+
+**Use multinomial logistic regresion since the categorical response has more than two types, and calculate the test error and train error**
+```{r}
+library(MASS)
+library(nnet)
+hw05_multi = multinom(y~., data = hw05_train_data, trace = FALSE)
+hw05_multi_train_pred = predict(hw05_multi,newdata = hw05_train_data)
+hw05_multi_test_pred = predict(hw05_multi,newdata = hw05_test_data)
+
+hw05_multi_train_error = calc_class_err(predicted = hw05_multi_train_pred, actual = hw05_train_data$y)
+
+hw05_multi_test_error = calc_class_err(predicted = hw05_multi_test_pred, actual = hw05_test_data$y)
+```
+
+
+
+**Build an LDA model with Priors estimated from data, and calculate the test error and train error**
+```{r}
+hw05_lda = lda(y ~ ., data = hw05_train_data)
+hw05_lda_train_pred = predict(hw05_lda, hw05_train_data)$class
+hw05_lda_test_pred = predict(hw05_lda, hw05_test_data)$class
+
+hw05_lda_train_error = calc_class_err(predicted = hw05_lda_train_pred, actual = hw05_train_data$y)
+
+hw05_lda_test_error = calc_class_err(predicted = hw05_lda_test_pred, actual = hw05_test_data$y )
+```
+
+**Build an LDA model with Flat Priors, and calculate the test error and train error**
+```{r}
+hw05_lda_flat = lda(y ~ ., data = hw05_train_data, prior = c(1, 1, 1,1) / 4)
+hw05_lda_flat_train_pred = predict(hw05_lda_flat, hw05_train_data)$class
+hw05_lda_flat_test_pred = predict(hw05_lda_flat, hw05_test_data)$class
+
+hw05_lda_flat_train_error = calc_class_err(predicted = hw05_lda_flat_train_pred, actual = hw05_train_data$y )
+
+hw05_lda_flat_test_error = calc_class_err(predicted = hw05_lda_flat_test_pred, actual = hw05_test_data$y)
+```
+
+
+**Build an QDA model with Priors estimated from data, and calculate the test error and train error**
+```{r}
+hw05_qda = qda(y ~ ., data = hw05_train_data)
+hw05_qda_train_pred = predict(hw05_qda, hw05_train_data)$class
+hw05_qda_test_pred = predict(hw05_qda, hw05_test_data)$class
+
+hw05_qda_train_error = calc_class_err(predicted = hw05_qda_train_pred, actual = hw05_train_data$y)
+
+hw05_qda_test_error = calc_class_err(predicted = hw05_qda_test_pred, actual = hw05_test_data$y)
+```
+
+**Build an QDA model with Flat Priors, and calculate the test error and train error**
+```{r}
+hw05_qda_flat = qda(y ~ ., data = hw05_train_data, prior = c(1, 1, 1,1) / 4)
+hw05_qda_flat_train_pred = predict(hw05_qda_flat, hw05_train_data)$class
+hw05_qda_flat_test_pred = predict(hw05_qda_flat, hw05_test_data)$class
+
+hw05_qda_flat_train_error = calc_class_err(predicted = hw05_qda_flat_train_pred, actual = hw05_train_data$y )
+
+hw05_qda_flat_test_error = calc_class_err(predicted = hw05_qda_flat_test_pred, actual = hw05_test_data$y)
+```
+
+
+**Build a naive bayes with Priors estimated from the data, and calculate the test error and train error**
+```{r}
+library(e1071)
+hw05_nb = naiveBayes(y ~ ., data = hw05_train_data)
+hw05_nb_train_pred = predict(hw05_nb, hw05_train_data)
+hw05_nb_test_pred = predict(hw05_nb, hw05_test_data)
+
+hw05_nb_train_error = calc_class_err(predicted = hw05_nb_train_pred, actual = hw05_train_data$y)
+
+hw05_nb_test_error = calc_class_err(predicted = hw05_nb_test_pred, actual = hw05_test_data$y)
+```
+
+**Make a data frame from the Methods, Train Errors, Test Errors, and make the data frame into a table**
+```{r}
+method_names = c("Additive Logistic Regression", "LDA", "LDA, Flat Prior", "QDA", "QDA, Flat Prior", "Naive Bayes")
+
+train_errors = c(hw05_multi_train_error, hw05_lda_train_error, hw05_lda_flat_train_error, hw05_qda_train_error, hw05_qda_flat_train_error, hw05_nb_train_error)
+
+test_errors = c(hw05_multi_test_error, hw05_lda_test_error, hw05_lda_flat_test_error, hw05_qda_test_error, hw05_qda_flat_test_error, hw05_nb_test_error)
+
+result = data.frame(method_names, train_errors, test_errors)
+colnames(result) = c("Method", "Train Error", "Test Error")
+
+kable(result)
+```
+
+
+## Exercise 5
+
+**(a)** We can see from the graph, when **k=5 and k=7**, it has the **smallest classification errors**, since when **k=7** the **model overfits**, **it performs the best among all Ks**. 
+
+**(b)** We can see from the table that the **QDA model with Flat Prior** has the **smallest test error**, so it performs the best. 
+
+**(c)** Naive Bayes performs poorly because it **assumes all the predictors are independent**, this is clearly not the case for our data since the **predictors x1 x2 are not completely independent**. 
+
+**(d)** **QDA performs better** because it **doesn't assume all the covariances matrice for k are equal**, so **it allows for more flexibility and specificiality for the covariance matrix K for the predictions**, that's why it performs better. 
+
+**(e)** **Using a flat prior** performs better because **it chooses a uniform distribution over the predictors**, which is **more specific and more organized than the prior estimating from the data that we don't know much about**.  
+
+**(f)** Looking at the **scatterplot** for all the classes, **Class B** is the easiest to identify because **it doesn't overlap as much** with other classes.  
+
+**(g)** **c = 0.5** is best to use in practice because it has the **largest accuracy and very good sensitivity and specificality**. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+

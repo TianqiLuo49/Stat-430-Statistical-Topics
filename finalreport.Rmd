@@ -1,0 +1,420 @@
+---
+title: "Wine Quality Analysis"
+author: "Tianqi Luo"
+output:
+  html_document: default
+  pdf_document: default
+date: "12/21/2017"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+In this report, I'll be doing analysis with the red wine data and white wine data, to predict the quality of both red and white wine with its respective variables. I'll be going through several models and determine which model predicts the best. In the end, I'm also plot the importance plot to figure out the most important predictors. 
+
+
+
+
+
+
+## Introduction: 
+
+The quality of the wine is very important in its value. However, what determines the quality of the wine? In this analysis we're going to analyze the how well the variables predict the quality of the wine. We're using data regarding the Portuguese "Vinho Verde" wine from Kaggle. Since the data is classification, we intend to use Logistic Regression, Random Forest Model, Bagged Tree Model and Boosted Tree Model as our models for the prediction. 
+
+
+## Materials and Methods: 
+
+
+
+
+
+**Read in red wine data**
+```{r}
+library(readr)
+wineQualityReds <- read.csv("wineQualityReds.csv", header = TRUE)
+wineQualityReds$X = NULL
+```
+
+**Read in the white wine data**
+```{r}
+wineQualityWhites <- read.csv("wineQualityWhites.csv", header = TRUE)
+wineQualityWhites$X = NULL
+```
+
+
+
+
+**Build a train data and test data for the red wine data**
+```{r}
+library(ISLR)
+library(ggplot2)
+library(caret)
+set.seed(678146855)
+wine_red_idx = createDataPartition(wineQualityReds$quality, p = 0.6, list = FALSE)
+red_wine_train_data = wineQualityReds[wine_red_idx,]
+red_wine_test_data = wineQualityReds[-wine_red_idx,]
+```
+
+
+**Set up cv_5 for the train model later**
+```{r}
+cv_5 = trainControl(method = "cv", number = 5)
+```
+
+
+
+**Train a Red Wine Logistic Regression**
+```{r}
+set.seed(678146855)
+red_wine_glm_model_cv = train( quality ~ .,
+                    data = red_wine_train_data, 
+                    trControl = cv_5,
+                    method = "glm")
+x = red_wine_glm_model_cv$results[, "RMSE"]
+red_wine_glm_model_rmse = x[which.min(x)]
+```
+
+
+
+**Train a Red Wine Tree model**
+```{r}
+set.seed(678146855)
+library(ggplot2)
+library(caret)
+library(rpart)
+library(rpart.plot)
+red_wine_tree_model_cv = train(quality ~ .,
+                     data = red_wine_train_data, 
+                     trControl = cv_5,
+                     method = "rpart")
+
+rpart.plot(red_wine_tree_model_cv$finalModel)
+```
+
+We can see that decision tree model **does not work well for this model**. First of all, it's **missing a lot of variables** for prediction. Second, since the "quality" variable is too hard to classify, it doesn't provide a good split for the tree model. So tree model does not work well in this situation. 
+
+
+
+**Train a Red Wine Random Forest Model**
+```{r}
+set.seed(678146855)
+library(randomForest)
+red_wine_rf_model_cv= train(
+  quality ~ .,
+  data = red_wine_train_data,
+  method = "rf",
+  trControl = cv_5
+ )
+x = red_wine_rf_model_cv$results[, "RMSE"]
+red_wine_rf_model_rmse = x[which.min(x)]
+```
+
+
+
+**Train a Red Wine Bagged Tree Model**
+```{r}
+set.seed(678146855)
+oob = trainControl(method = "oob")
+red_wine_rf_model_oob = train(quality ~ ., data = red_wine_train_data,
+                     method = "rf",
+                     trControl = oob,
+                     verbose = FALSE)
+x = red_wine_rf_model_oob$results[, "RMSE"]
+red_wine_rf_model_oob_rmse = x[which.min(x)]
+```
+
+**Train a Red Wine Boosted Tree Model**
+```{r}
+library(splines)
+library(parallel)
+set.seed(678146855)
+red_wine_gbm_model_cv = train(quality ~ ., data = red_wine_train_data,
+                      method = "gbm",
+                      trControl = cv_5,
+                      verbose = FALSE)
+x = red_wine_gbm_model_cv$results[, "RMSE"]
+red_wine_gbm_model_cv_rmse = x[which.min(x)]
+```
+
+
+
+**Find the Test RMSEs**
+```{r}
+calc_rmse = function(actual, predicted) {
+  sqrt(mean((actual - predicted) ^ 2))
+}
+
+red_wine_glm_model_cv_test_rmse = calc_rmse(predict(red_wine_glm_model_cv,red_wine_test_data),  red_wine_test_data$quality)
+
+red_wine_rf_model_cv_test_rmse = calc_rmse(predict(red_wine_rf_model_cv, red_wine_test_data), red_wine_test_data$quality)
+
+red_wine_rf_model_oob_test_rmse = calc_rmse(predict(red_wine_rf_model_oob, red_wine_test_data),  red_wine_test_data$quality)
+
+red_wine_gbm_model_cv_test_rmse = calc_rmse(predict(red_wine_gbm_model_cv, red_wine_test_data), red_wine_test_data$quality)
+```
+
+
+
+**Make a table from the results for Red Wine**
+```{r}
+library(knitr)
+models = c("Red Wine Logistic Regression","Red Wine Random Forest Model", "Red Wine Bagged Tree Model", "Red Wine Boosted Tree Model")
+
+all_resampled_rmse = c(red_wine_glm_model_rmse, red_wine_rf_model_rmse, red_wine_rf_model_oob_rmse , red_wine_gbm_model_cv_rmse)
+
+all_test_rmse = c(red_wine_glm_model_cv_test_rmse, red_wine_rf_model_cv_test_rmse, red_wine_rf_model_oob_test_rmse, red_wine_gbm_model_cv_test_rmse)
+
+results = data.frame(models, all_resampled_rmse, all_test_rmse)
+
+colnames(results) = c("Model", "Resampled RMSE", "Test RMSE")
+
+kable(results)
+```
+
+We can see from our table that, **Bagged Tree Model works the best** because it has the **smallest Resampled RMSE** and the **smallest Test RMSE**. 
+
+
+
+
+**Plot the importance plot for Red Wine**
+```{r}
+set.seed(678146855)
+red_wine_forest = randomForest(quality ~ ., data = red_wine_train_data, 
+                             importance = TRUE, ntrees = 500)
+varImpPlot(red_wine_forest, type = 1, scale = TRUE)
+```
+
+We can see from the importance plot variables sulphates, alcohol and volatile.acidity are the most important predictors for wine quality. 
+
+**Do the same for white wine, build a train data and a test data**
+```{r}
+set.seed(678146855)
+white_wine_idx = createDataPartition(wineQualityWhites$quality, p = 0.6, list = FALSE)
+white_wine_train_data = wineQualityWhites[white_wine_idx,]
+white_wine_test_data = wineQualityWhites[-white_wine_idx,]
+```
+
+
+**Train a logistic model for white wine**
+```{r}
+set.seed(678146855)
+white_wine_glm_model_cv = train( quality ~ .,
+                    data = white_wine_train_data, 
+                    trControl = cv_5,
+                    method = "glm")
+x = white_wine_glm_model_cv$results[, "RMSE"]
+white_wine_glm_model_rmse = x[which.min(x)]
+```
+
+**Train a white Wine Tree model**
+```{r}
+set.seed(678146855)
+white_wine_tree_model_cv = train(quality ~ .,
+                     data = white_wine_train_data, 
+                     trControl = cv_5,
+                     method = "rpart")
+
+rpart.plot(white_wine_tree_model_cv$finalModel)
+```
+
+We can see the tree model is **not an ideal model** for the white wine data either since it **doesn't include most of the variables** and plus it **doesn't have a proper split** for the variables. 
+
+
+
+
+**Train a white Wine Random Forest Model**
+```{r}
+set.seed(678146855)
+library(randomForest)
+white_wine_rf_model_cv= train(
+  quality ~ .,
+  data = white_wine_train_data,
+  method = "rf",
+  trControl = cv_5
+ )
+x = white_wine_rf_model_cv$results[, "RMSE"]
+white_wine_rf_model_rmse = x[which.min(x)]
+```
+
+**Train a white Wine Bagged Tree Model**
+```{r}
+set.seed(678146855)
+oob = trainControl(method = "oob")
+white_wine_rf_model_oob = train(quality ~ ., data = white_wine_train_data,
+                     method = "rf",
+                     trControl = oob,
+                     verbose = FALSE)
+x = white_wine_rf_model_oob$results[, "RMSE"]
+white_wine_rf_model_oob_rmse = x[which.min(x)]
+```
+
+**Train a white Wine Boosted Tree Model**
+```{r}
+set.seed(678146855)
+white_wine_gbm_model_cv = train(quality ~ ., data = white_wine_train_data,
+                      method = "gbm",
+                      trControl = cv_5,
+                      verbose = FALSE)
+x = white_wine_gbm_model_cv$results[, "RMSE"]
+white_wine_gbm_model_cv_rmse = x[which.min(x)]
+```
+
+
+**Find the Test RMSEs for white wines**
+```{r}
+calc_rmse = function(actual, predicted) {
+  sqrt(mean((actual - predicted) ^ 2))
+}
+
+white_wine_glm_model_cv_test_rmse = calc_rmse(predict(white_wine_glm_model_cv,white_wine_test_data),  white_wine_test_data$quality)
+
+white_wine_rf_model_cv_test_rmse = calc_rmse(predict(white_wine_rf_model_cv, white_wine_test_data), white_wine_test_data$quality)
+
+white_wine_rf_model_oob_test_rmse = calc_rmse(predict(white_wine_rf_model_oob, white_wine_test_data),  white_wine_test_data$quality)
+
+white_wine_gbm_model_cv_test_rmse = calc_rmse(predict(white_wine_gbm_model_cv, white_wine_test_data), white_wine_test_data$quality)
+```
+
+
+**Work on sapply function**
+```{r}
+calc_acc = function(actual, predicted) {
+  mean(actual != predicted)
+}
+```
+
+
+```{r}
+#read in the data
+White <- read.csv("WineQualityWhites.csv")
+colnames(White)[which(names(White) == "free.sulfur.dioxide")] <- "Free_SO2"  
+colnames(White)[which(names(White) == "total.sulfur.dioxide")] <- "Total_SO2"
+
+White$X = NULL
+
+```
+
+```{r}
+set.seed(2333)
+white_obs = nrow(White)
+white_idx = sample(white_obs, size = trunc(0.50 * white_obs))
+White_trn = White[white_idx, ]
+White_tst = White[-white_idx, ]
+```
+
+
+```{r}
+#Radial SVM
+library(kernlab)
+set.seed(430)
+rad_grid = expand.grid(C = c(2 ^ (-2:3)), sigma  = c(2 ^ (-3:1)))
+rad_svm_time = system.time({
+rad_tune_svm = train(quality ~ ., data = White_trn, 
+                     method = "svmRadial",
+                     trControl = cv_5)
+})
+
+rad_tune_svm
+```
+
+```{r}
+White_tst
+```
+
+```{r}
+get_test_acc = function(model) {calc_acc(actual = predict(model, White_tst), predicted = White_tst$quality)}
+
+
+model_list = list(rad_tune_svm)
+
+test_acc = sapply(model_list, get_test_acc)
+
+test_acc
+```
+
+```{r}
+White_tst$quality
+
+predict(rad_tune_svm, White_tst)
+```
+
+
+```{r}
+White_tst
+```
+
+```{r}
+white_wine_test_data
+```
+
+
+
+## Results:
+**Make a table from the results for Red Wine**
+```{r}
+library(knitr)
+models = c("Red Wine Logistic Regression","Red Wine Random Forest Model", "Red Wine Bagged Tree Model", "Red Wine Boosted Tree Model")
+
+all_resampled_rmse = c(red_wine_glm_model_rmse, red_wine_rf_model_rmse, red_wine_rf_model_oob_rmse , red_wine_gbm_model_cv_rmse)
+
+all_test_rmse = c(red_wine_glm_model_cv_test_rmse, red_wine_rf_model_cv_test_rmse, red_wine_rf_model_oob_test_rmse, red_wine_gbm_model_cv_test_rmse)
+
+results = data.frame(models, all_resampled_rmse, all_test_rmse)
+
+colnames(results) = c("Model", "Resampled RMSE", "Test RMSE")
+
+kable(results)
+```
+
+
+**Plot the importance plot for Red Wine**
+```{r}
+set.seed(678146855)
+red_wine_forest = randomForest(quality ~ ., data = red_wine_train_data, 
+                             importance = TRUE, ntrees = 500)
+varImpPlot(red_wine_forest, type = 1, scale = TRUE)
+```
+
+We can see from the importance plot that **variables sulphates, alcohol and volatile.acidity** are the **three most important predictors** for wine quality.
+
+
+**Make a table from the results for white wine**
+```{r}
+models = c("White Wine Logistic Regression","White Wine Random Forest Model", "White Wine Bagged Tree Model", "White Wine Boosted Tree Model")
+
+white_wine_all_resampled_rmse = c(white_wine_glm_model_rmse, white_wine_rf_model_rmse, white_wine_rf_model_oob_rmse , white_wine_gbm_model_cv_rmse)
+
+white_wine_all_test_rmse = c(white_wine_glm_model_cv_test_rmse, white_wine_rf_model_cv_test_rmse, white_wine_rf_model_oob_test_rmse, white_wine_gbm_model_cv_test_rmse)
+
+results = data.frame(models, white_wine_all_resampled_rmse, white_wine_all_test_rmse)
+
+colnames(results) = c("Model", "Resampled RMSE", "Test RMSE")
+
+kable(results)
+```
+
+We can see from our results above that the **bagged tree model works the best** for the white wine data since it has the **lowest resampled RMSE and the lowest test TMSE**. 
+
+
+
+**Plot the importance plot for white wine**
+```{r}
+set.seed(678146855)
+white_wine_forest = randomForest(quality ~ ., data = white_wine_train_data, 
+                             importance = TRUE, ntrees = 500)
+varImpPlot(white_wine_forest, type = 1, scale = TRUE)
+```
+
+We can see from the importance plot that **volatile.acidity, alcohol and free.sulfur.dioxide** are the **three most important factors** for **predicting quality for white wine**. 
+
+
+## Conclusions:
+
+1. For both white wine and red wine data, **decision tree model** doesn't work well. 
+
+2. The **best model** to predict quality for both models is **bagged tree model**. 
+
+3. The three most important variables to predict red wine quality are **sulphates, alcohol and volatile.acidity**. The three most important variables to predict white wine quality are **volatile.acidity, alcohol and free.sulfur.dioxide**. 

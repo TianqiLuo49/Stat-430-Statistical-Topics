@@ -1,0 +1,395 @@
+---
+title: "Homework 10"
+author: "Stat 430, Fall 2017"
+date: "Due Wednesday, December 13, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+
+**Load the data**
+```{r}
+library(ISLR)
+library(ggplot2)
+library(lattice)
+library(caret)
+set.seed(678146855)
+oj_idx = createDataPartition(OJ$Purchase, p = 0.5, list = FALSE)
+oj_train_data = OJ[oj_idx, ]
+oj_test_data = OJ[-oj_idx, ]
+```
+
+
+```{r}
+cv_5 = trainControl(method = "cv", number = 5)
+lin_grid = expand.grid(C = c(2^(-5:5)))
+rad_grid = expand.grid(C = c(2 ^(-2:3)), sigma = c(2^(-3:1)))
+```
+
+**(a)**
+
+**Tune a SVM with a linear kernel model with 5-fold cross-validation**
+```{r}
+library(kernlab)
+set.seed(678146855)
+oj_svm_linear = train(
+  Purchase ~ ., data = oj_train_data, 
+  method = "svmLinear",
+  trControl = cv_5,
+  tuneGrid = lin_grid
+)
+```
+
+**Tuning parameters chosen for this model**
+```{r}
+oj_svm_linear$results[, "C"]
+```
+
+**Test Accuracy for this model**
+```{r}
+x = oj_svm_linear$results[, "Accuracy"]
+oj_svm_linear_acc = x[which.max(x)]
+oj_svm_linear_acc
+```
+
+
+
+
+
+**(b)**
+
+
+**Tune a SVM with a polynomial kernel model with a 5-fold cross-validation**
+```{r}
+set.seed(678146855)
+oj_svm_polynomial = train(
+  Purchase ~ ., data = oj_train_data, 
+  method = "svmPoly",
+  trControl = cv_5
+  
+)
+```
+
+**Chosen tuning parameters for this model**
+```{r}
+oj_svm_polynomial$results[, "C"]
+```
+
+
+**Test Accuracy for this model**
+```{r}
+
+x = oj_svm_polynomial$results[, "Accuracy"]
+oj_svm_polynomial_acc = x[which.max(x)]
+oj_svm_polynomial_acc
+```
+
+
+
+
+**(c)**
+
+**Tune a SVM with a radial kernel model with a 5-fold cross-validation**
+```{r}
+set.seed(678146855)
+oj_svm_radial = train(
+  Purchase ~ ., data = oj_train_data, 
+  method = "svmRadial",
+  trControl = cv_5, 
+  tuneGrid = rad_grid
+)
+```
+
+**Chosen tuning parameters for this model**
+```{r}
+oj_svm_radial$results[, "C"]
+```
+
+**Test Accuracy for this model**
+```{r}
+
+x = oj_svm_radial$results[, "Accuracy"]
+oj_svm_radial_acc = x[which.max(x)]
+oj_svm_radial_acc
+
+```
+
+**(d)**
+
+
+**Tune a random forest**
+```{r}
+library(randomForest)
+set.seed(678146855)
+oj_rf = train(
+   Purchase ~ ., data = oj_train_data, 
+  method = "rf",
+  trControl = cv_5
+)
+```
+
+**Chosen tuning parameters for this model**
+```{r}
+oj_rf$results[, "mtry"]
+```
+**Test Accuracy for this model**
+```{r}
+x = oj_rf$results[, "Accuracy"]
+oj_rf_acc = x[which.max(x)]
+oj_rf_acc
+```
+
+**(e)**
+
+**Summarize the result in a table**
+```{r}
+library(knitr)
+test_accuracies = c(oj_svm_linear_acc, oj_svm_polynomial_acc, oj_svm_radial_acc, oj_rf_acc)
+models = c("SVM with a Linear Kernel", "SVM with a Polynomial Kernel", "SVM with a Radial Kernel", "Random Forest")
+result = data.frame(models, test_accuracies)
+colnames(result) = c("Model", "Test Accuracy")
+kable(result)
+```
+
+We can see from our results that, **SVM with a Polynomial Kernel** performs the best because it has the **highest test accuracy**.
+
+## Exercise 2
+
+**Load the data**
+```{r}
+clust_data = read.csv("clust_data.csv")
+```
+
+**(a)**
+
+**Write a for loop to use kmeans on to set center = 1:15, and find the value of tot.withinss for each center**
+```{r}
+set.seed(678146855)
+kmeans_out = 0
+for(i in 1:15){
+  kmeans_out[i] = kmeans(clust_data, center = i, nstart = 10)$tot.withinss}
+
+num_of_centers = c(1:15)
+
+```
+
+**Plot the graph of the number of centers and values of Tot.Withinss**
+```{r}
+plot(num_of_centers, kmeans_out, xlab = "Number of Centers", ylab = "Tot.Withinss Value")
+```
+
+Based on the plot, we can see that when the **numer of center = 3**, the **performance drops** suddenly as **tot.withinss suddenly gets much larger**, so we **should choose center = 3**. Since center = 3, **3 clusters** should be used for this data. 
+
+**(b)**
+
+**Apply k-means using center = 3**
+```{r}
+set.seed(678146855)
+kmeans_out = kmeans(clust_data, centers = 3, nstart = 10)
+```
+
+**Find the distribution of the clusters**
+```{r}
+kmeans_out$cluster
+```
+
+**Find the size of observations from each cluster**
+```{r}
+kmeans_out$size
+```
+
+
+**Find the tot.withinss**
+```{r}
+kmeans_out$tot.withinss
+```
+
+
+We can see from our results that there are **25 observations placed in clusters 1 and 3**, **50 observations placed in cluster 2**. The value of tot.withinss is **5663.658**. 
+
+**(c)**
+
+**Visualize the data**
+```{r}
+true_clusters = kmeans_out$cluster
+plot(
+  clust_data[, 1],
+  clust_data[, 2],
+  pch = 20,
+  col = true_clusters,
+  xlab = "First Variable",
+  ylab = "Second Variable"
+)
+```
+
+
+
+**I don't think I've made the right choice** of clusters based on this graph. As we can see, the **distribution of within each clusters aren't exactly similar** and **there's a lot of overlap** between the 3 clusters. 
+
+
+**(d)**
+
+**Visualize the data by PCA**
+```{r}
+
+clust_data_pca = prcomp(clust_data, scale = TRUE)
+
+plot(
+  clust_data_pca$x[, 1],
+  clust_data_pca$x[, 2],
+  pch = 0,
+  xlab = "First Principal Component",
+  ylab = "Second Principal Component",
+  col = true_clusters
+)
+```
+
+Based on this plot, I think **I've made the right choice for the clusters**. We can see the **distribution within each cluster is similar**, and the clusters are **distinct with no overlap**. 
+
+
+**(e)**
+
+**Calculate the proportion of variation explained by principal components**
+```{r}
+get_PVE = function(pca_out) {
+  pca_out$sdev ^ 2 / sum(pca_out$sdev ^ 2)
+}
+
+clust_data_pve = get_PVE(clust_data_pca)
+```
+
+```{r}
+plot(
+  cumsum(clust_data_pve),
+  xlab = "Principal Component",
+  ylab = "Cumulative Proportion of Variance Explained",
+  
+  ylim = c(0,1),
+  type = 'b')
+```
+
+According to the plot, we need **at least 40** principal components to explain 95% of the data. 
+
+## Exercise 3
+
+**(a)**
+
+**Set the data USArrests**
+```{r}
+library(ISLR)
+data(USArrests)
+```
+
+**Perform six different hierarchical clusterings with all the possible linkages**
+
+
+**Average method**
+```{r}
+library(sparcl)
+arrest_data_hc_average = hclust(dist(USArrests), method = "average")
+arrest_data_cut_average = cutree(arrest_data_hc_average , 4)
+ColorDendrogram(arrest_data_hc_average, y = arrest_data_cut_average,
+                labels = names(arrest_data_cut_average),
+                main = "USArrest Data, Average Linkage",
+                branchlength = 30)
+```
+
+
+**Scaled average method**
+```{r}
+arrest_data_hc_scaled_average = hclust(dist(scale(USArrests)), method = "average")
+arrest_data_cut_scaled_average = cutree(arrest_data_hc_scaled_average , 4)
+ColorDendrogram(arrest_data_hc_scaled_average, y = arrest_data_cut_scaled_average,
+                labels = names(arrest_data_cut_scaled_average),
+                main = "USArrest Data, Scaled, Average Linkage",
+                branchlength = 0.5)
+```
+
+
+**Single method**
+```{r}
+arrest_data_hc_single = hclust(dist(USArrests), method = "single")
+arrest_data_cut_single = cutree(arrest_data_hc_single , 4)
+ColorDendrogram(arrest_data_hc_single, y = arrest_data_cut_single,
+                labels = names(arrest_data_cut_single),
+                main = "USArrest Data, Single Linkage",
+                branchlength = 10)
+```
+
+
+**Single Scaled method**
+```{r}
+arrest_data_hc_scaled_single = hclust(dist(scale(USArrests)), method = "single")
+arrest_data_cut_scaled_single = cutree(arrest_data_hc_scaled_single , 4)
+ColorDendrogram(arrest_data_hc_scaled_single, y = arrest_data_cut_scaled_single,
+                labels = names(arrest_data_cut_scaled_single),
+                main = "USArrest Data, Scaled, Single Linkage",
+                branchlength = 0.5)
+```
+
+
+**Complete method**
+```{r}
+arrest_data_hc_complete = hclust(dist(USArrests), method = "complete")
+arrest_data_cut_complete = cutree(arrest_data_hc_complete , 4)
+ColorDendrogram(arrest_data_hc_complete, y = arrest_data_cut_complete,
+                labels = names(arrest_data_cut_complete),
+                main = "USArrest Data, Complete Linkage",
+                branchlength = 80)
+```
+
+
+
+**Complete Scaled method**
+```{r}
+arrest_data_hc_scaled_complete = hclust(dist(scale(USArrests)), method = "complete")
+arrest_data_cut_scaled_complete = cutree(arrest_data_hc_scaled_complete , 4)
+ColorDendrogram(arrest_data_hc_scaled_complete, y = arrest_data_cut_scaled_complete,
+                labels = names(arrest_data_cut_scaled_complete),
+                main = "USArrest Data, Scaled, Complete Linkage",
+                branchlength = 1)
+```
+
+**(b)** Based on the dendrograms above, I would choose to the **Scaled, Complete Linkage** model since it **perfectly uses all 4 clusters** and **all clusters have similar distributions**.I think this model is the best since it **fully uses all 4 clusters** and gives a **better classification** of the observations. 
+
+**(c)**
+
+**Use ?hclust to search for other possible methods**
+```{r}
+?hclust
+```
+
+**We choose centroid from the hclust methods**
+```{r}
+arrest_data_hc_scaled_centroid = hclust(dist(scale(USArrests)), method = "centroid")
+arrest_data_cut_scaled_centroid = cutree(arrest_data_hc_scaled_centroid , 4)
+ColorDendrogram(arrest_data_hc_scaled_centroid, y = arrest_data_cut_scaled_centroid,
+                labels = names(arrest_data_cut_scaled_centroid),
+                main = "USArrest Data, Scaled, Centroid Linkage",
+                branchlength = 0.5)
+```
+
+We can see the centroid method **is much different** as our best model, since it doesn't **make full use of all 4 clusters**, and the **distributions within each clusters vary too much**. 
+
+
+
+**(d)**
+
+**Use ?dist to search for other possible distance measures**
+```{r}
+?dist
+```
+
+
+**We choose the manhattan dist measure**
+```{r}
+arrest_data_hc_scaled_complete = hclust(dist(scale(USArrests), method = "manhattan"), method = "complete")
+arrest_data_cut_scaled_complete = cutree(arrest_data_hc_scaled_complete , 4)
+ColorDendrogram(arrest_data_hc_scaled_complete, y = arrest_data_cut_scaled_complete,
+                labels = names(arrest_data_cut_scaled_complete),
+                main = "USArrest Data, Scaled, Complete Linkage",
+                branchlength = 2)
+```
+
+We can see from our result that, the results **are not much different** from the result from our best model, since it **perfectly uses all four clusters** and **all the clusters have similar distributions**.  

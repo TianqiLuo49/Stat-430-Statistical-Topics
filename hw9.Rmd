@@ -1,0 +1,415 @@
+---
+title: "Homework 08"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, November 10, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+**Load the data**
+```{r}
+library(ggplot2)
+library(caret)
+library(mlbench)
+set.seed(42)
+sim_train_data = mlbench.spirals(n = 2500, cycles = 1.5, sd = 0.125)
+sim_train_data = data.frame(sim_train_data$x, class = as.factor(sim_train_data$classes))
+sim_test_data = mlbench.spirals(n = 10000, cycles = 1.5, sd = 0.125)
+sim_test_data = data.frame(sim_test_data$x, class = as.factor(sim_test_data$classes))
+```
+
+**Set up cv_5**
+```{r}
+cv_5 = trainControl(method = "cv", number = 5)
+```
+
+
+**Tune a model with Logistic with CV**
+```{r}
+set.seed(678146855)
+sim_glm_cv = train( class ~ .,
+                    data = sim_train_data, 
+                    trControl = cv_5,
+                    method = "glm")
+x = sim_glm_cv$results[, "Accuracy"]
+glm_cv_acc = x[which.max(x)]
+```
+
+
+
+
+**Find the elapsed time for the Logistic Model with CV**
+```{r}
+glm_cv_time = system.time({sim_glm_cv = train( class ~ .,
+                    data = sim_train_data, 
+                    trControl = cv_5,
+                    method = "glm") })
+glm_cv_time["elapsed"]
+```
+
+
+**Tune a model with Tree With CV**
+```{r}
+set.seed(678146855)
+sim_tree_cv = train( class ~ .,
+                     data = sim_train_data, 
+                     trControl = cv_5,
+                     method = "rpart")
+x = sim_tree_cv$results[, "Accuracy"]
+tree_cv_acc = x[which.max(x)]
+```
+
+
+**Find the elapsed time for the Tree with CV Model**
+```{r}
+tree_cv_time = system.time({sim_tree_cv = train(class ~ .,
+                     data = sim_train_data, 
+                     trControl = cv_5,
+                     method = "rpart")})
+tree_cv_time["elapsed"]
+```
+
+
+**Plot the rpart**
+```{r}
+library(rpart.plot)
+rpart.plot(sim_tree_cv$finalModel)
+```
+
+**Tune a Random Forest with CV**
+```{r}
+set.seed(678146855)
+library(caret)
+library(randomForest)
+rf_grid = expand.grid(mtry = c(1,2))
+sim_rf_cv= train(
+  class ~ .,
+  data = sim_train_data,
+  method = "rf",
+  trControl = cv_5, 
+  tuneGrid = rf_grid
+  )
+
+x = sim_rf_cv$results[, "Accuracy"]
+rf_cv_acc = x[which.max(x)]
+
+```
+
+**Tune a Random Forest with OOB**
+```{r}
+set.seed(678146855)
+oob = trainControl(method = "oob")
+sim_rf_oob = train(class ~ ., data = sim_train_data,
+                     method = "rf",
+                     trControl = oob,
+                     verbose = FALSE,
+                     tuneGrid = rf_grid)
+x = sim_rf_oob$results[, "Accuracy"]
+rf_oob_acc = x[which.max(x)]
+```
+
+**Find all the best Tunes**
+```{r}
+glm_cv_best_tune = sim_glm_cv$bestTune
+tree_cv_best_tune = sim_tree_cv$bestTune
+rf_cv_best_tune = sim_rf_cv$bestTune
+rf_oob_best_tune = sim_rf_oob$bestTune
+```
+
+**From the result, we can see best tuning parameter for logistic is "none"**
+```{r}
+glm_cv_best_tune$parameter = 'None'
+```
+
+
+**Find the elapsed time for logistics model**
+```{r}
+glm_cv_time = system.time({sim_glm_cv = train( class ~ .,
+                    data = sim_train_data, 
+                    trControl = cv_5,
+                    method = "glm") })
+glm_cv_elapsed = glm_cv_time["elapsed"]
+```
+
+
+**Find the elapsed time for the tree model**
+```{r}
+tree_cv_time = system.time({sim_tree_cv = train(class ~ .,
+                     data = sim_train_data, 
+                     trControl = cv_5,
+                     method = "rpart")})
+tree_cv_elapsed = tree_cv_time["elapsed"]
+```
+
+
+**Find the elapsed time for the Random Forest Model**
+```{r}
+rf_cv_time =  system.time({sim_rf_cv= train(
+  class ~ .,
+  data = sim_train_data,
+  method = "rf",
+  trControl = cv_5, 
+  tuneGrid = rf_grid
+  )})
+rf_cv_elapsed = rf_cv_time["elapsed"]
+```
+
+
+**Find the elapsed time for the Random Forest OOB Model**
+```{r}
+rf_oob_time = system.time({sim_rf_oob = train(class ~ ., 
+                                              data = sim_train_data,
+                                              method = "rf",
+                                             trControl = oob,
+                                            verbose = FALSE,
+                                         tuneGrid = rf_grid)})
+rf_oob_elapsed = rf_oob_time["elapsed"]
+
+```
+
+**Calculate the test accuracy**
+```{r}
+calc_acc = function(actual, predicted) {
+  mean(actual == predicted)
+}
+```
+
+
+**Calculate test accuracy**
+```{r}
+rf_oob_test_acc = calc_acc(predict(sim_rf_oob, sim_test_data), sim_test_data$class)
+
+rf_cv_test_acc = calc_acc(predict(sim_rf_cv, sim_test_data), sim_test_data$class)
+
+tree_cv_test_acc = calc_acc(predict(sim_tree_cv, sim_test_data), sim_test_data$class)
+
+glm_cv_test_acc = calc_acc(predict(sim_glm_cv, sim_test_data), sim_test_data$class)
+```
+
+**Summarize all the results**
+```{r}
+chosen_tuning_parameter =c (glm_cv_best_tune$parameter,
+                            tree_cv_best_tune$cp,
+                            rf_oob_best_tune$mtry,
+                            rf_cv_best_tune$mtry)
+elapsed_time = c(glm_cv_elapsed, tree_cv_elapsed, rf_oob_elapsed, rf_cv_elapsed)
+resampled_accuracy = c(glm_cv_acc, tree_cv_acc, rf_oob_acc, rf_cv_acc)
+test_accuracy = c(glm_cv_test_acc, tree_cv_test_acc, rf_oob_test_acc, rf_cv_test_acc)
+```
+
+
+
+**Make a table from the results**
+```{r}
+library(knitr)
+models = c("Logistic Regression Cross Validated", "Decision Tree Cross Validated", "Random Forest Out of Bag", "Random Forest Cross Validated")
+result = data.frame(models, chosen_tuning_parameter, elapsed_time, resampled_accuracy, test_accuracy)
+colnames(result) = c("Model", "Chosen Parameters", "Elapsed Time", "Resampled Accuracy", "Test Accuracy")
+kable(result)
+```
+
+
+
+## Exercise 2
+**Load the data**
+```{r}
+library(ISLR)
+Hitters = na.omit(Hitters)
+set.seed(678146855)
+hit_idx = createDataPartition(Hitters$Salary, p = 0.6, list = FALSE)
+hitters_train_data = Hitters[hit_idx,]
+hitters_test_data = Hitters[-hit_idx,]
+```
+
+**Set the gbm_grid**
+```{r}
+gbm_grid = expand.grid(interaction.depth = c(1, 2),
+n.trees = c(500, 1000, 1500),
+shrinkage = c(0.001, 0.01, 0.1),
+n.minobsinnode = 10)
+```
+
+**Find the dimensions of the data**
+```{r}
+dim(Hitters)
+```
+
+**We can see there are 19 predictors**
+
+**Fit a gbm model with hitters**
+```{r}
+library(splines)
+library(parallel)
+set.seed(678146855)
+hitters_gbm_cv = train(Salary ~ ., data = hitters_train_data,
+                      method = "gbm",
+                      trControl = cv_5,
+                      verbose = FALSE,
+                      tuneGrid = gbm_grid)
+x = hitters_gbm_cv$results[, "RMSE"]
+hitters_gbm_cv_rmse = x[which.min(x)]
+
+```
+
+
+**Set the rf_grid, set mtry to be 1:19 for all the 19 predictors**
+```{r}
+rf_grid =  expand.grid(mtry = 1:19)
+```
+
+**Fit a random forest model with all the possible mtrys**
+```{r}
+set.seed(678146855)
+hitters_rf_cv = train(Salary ~ ., data = hitters_train_data,
+                     method = "rf",
+                     trControl = cv_5,
+                     verbose = FALSE)
+                     
+x = hitters_rf_cv$results[, "RMSE"]
+hitters_rf_cv_rmse = x[which.min(x)]
+```
+
+**Fit a bagged tree model**
+```{r}
+set.seed(678146855)
+hitters_rf_oob = train(Salary ~ ., data = hitters_train_data,
+                     method = "rf",
+                     trControl = oob,
+                     verbose = FALSE,
+                     tuneGrid = rf_grid)
+x = hitters_rf_oob$results[, "RMSE"]
+hitters_rf_oob_rmse = x[which.min(x)]
+```
+
+**Find the Test RMSEs**
+```{r}
+calc_rmse = function(actual, predicted) {
+  sqrt(mean((actual - predicted) ^ 2))
+}
+
+hitters_gbm_cv_test_rmse = calc_rmse(predict(hitters_gbm_cv, hitters_test_data), hitters_test_data$Salary)
+
+hitters_rf_cv_test_rmse = calc_rmse(predict(hitters_rf_cv, hitters_test_data), hitters_test_data$Salary)
+
+hitters_rf_oob_test_rmse = calc_rmse(predict(hitters_rf_oob, hitters_test_data), hitters_test_data$Salary)
+```
+
+
+
+```{r}
+predict(hitters_gbm_cv, hitters_test_data)
+```
+
+
+
+
+**Summarize the results**
+```{r}
+models = c("Boosted Tree Model", "Random Forest Model", "Bagged Tree Model")
+
+resampled_rmse = c(hitters_gbm_cv_rmse, hitters_rf_cv_rmse, hitters_rf_oob_rmse)
+
+test_rmse = c(hitters_gbm_cv_test_rmse, hitters_rf_cv_test_rmse, hitters_rf_oob_test_rmse)
+
+```
+
+**Make it into a table**
+```{r}
+result = data.frame(models, resampled_rmse, test_rmse)
+colnames(result) = c("Models", "Resampled RMSEs", "Test RMSEs")
+kable(result)
+```
+
+## Exercise 3
+
+**Log transform the response**
+```{r}
+set.seed(678146855)
+hitters_rf_cv_transformed = train(log(Salary) ~ ., data = hitters_train_data,
+                     method = "rf",
+                     trControl = cv_5,
+                     verbose = FALSE,
+                     tuneGrid = rf_grid)
+
+hitters_rf_cv_transformed_test_rmse = calc_rmse(predict(hitters_rf_cv_transformed, hitters_test_data), hitters_test_data$Salary)
+```
+
+**Find test RMSEs for both**
+```{r}
+hitters_rf_cv_test_rmse
+hitters_rf_cv_transformed_test_rmse
+```
+
+
+
+
+## Exercise 4
+
+## Timing
+
+**(a)** Yes, the result is **what I have expected**. As **out of the bag is more advantageous** as it **removes the need to refit the model** and is more efficiently, thus taking less time. 
+
+**(b)** Yes, they all chose **mtry = 1**. 
+
+**(c)** We can see that the **random forests models** outperform the logistic and tree model. As we can see from the **scatterplot**, the data we have is very random. That's why random forests perform better. 
+
+
+
+
+
+## Salary
+
+**(d)** 
+```{r}
+hitters_rf_cv$results[, "mtry"]
+```
+We can see from the our results, the **tuned values** for mtry are **2, 10 and 19**. 
+
+
+
+**(e)** 
+**Plot the tuning results for the tuning of the boosted tree model**
+```{r}
+plot(hitters_gbm_cv)
+```
+
+**(f)**
+**Plot the importance plot**
+```{r}
+set.seed(678146855)
+hitters_forest = randomForest(Salary ~ ., data = hitters_train_data, mtry = 19, 
+                             importance = TRUE, ntrees = 500)
+varImpPlot(hitters_forest, type = 1, scale = TRUE)
+```
+
+ 
+**(g)**Plot the variable importance for the tuned boosted tree model
+```{r}
+set.seed(678146855)
+hitters_boost = gbm(Salary ~ ., data = hitters_train_data, distribution = "gaussian", 
+                    n.trees = 5000, interaction.depth = 4, shrinkage = 0.01)
+
+tibble::as.tibble(summary(hitters_boost))
+
+```
+
+
+**(h)**
+According to our results, the three most important predictors for the random forest models are **CRBI, CAtBat and CRuns**.
+
+**(i)**
+According to our results, the 3 most important predictors for the boosted model are **CRBI, PutOuts and Walks**. 
+
+## Transformation
+
+**(j)** No, it was not necessary as it created a test RMSE which is **twice larger than** before. 
+
+
+`
+
+
+
+
+
+

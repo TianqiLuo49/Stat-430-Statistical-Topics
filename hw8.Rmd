@@ -1,0 +1,342 @@
+---
+title: "Homework 08"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, November 10, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+**Load the data**
+```{r}
+library(readr)
+leukemia = read_csv("leukemia.csv", progress = FALSE)
+y = as.factor(leukemia$class)
+X = as.matrix(leukemia[, -1])
+
+```
+
+**Find the specifics of the data**
+```{r}
+dim(leukemia)
+```
+**We can see the dataset has 72 columns and 5148 rows**
+
+
+**Fit the data using Ridge, and plot two sideplots**
+```{r}
+library(Matrix)
+library(foreach)
+library(glmnet)
+set.seed(678146855)
+par(mfrow = c(1, 2))
+fit_ridge = glmnet(X, y, family = "binomial", alpha = 0)
+plot(fit_ridge)
+plot(fit_ridge, xvar = "lambda", label = TRUE)
+```
+
+**Fit the data by Lasso, plot two sidepolots**
+```{r}
+par(mfrow = c(1, 2))
+fit_lasso = glmnet(X, y, family = "binomial", alpha = 1)
+plot(fit_lasso)
+plot(fit_lasso, xvar = "lambda", label = TRUE)
+```
+
+
+
+**Find the Lasso grid for minimum lambda and lambda within one standard error**
+```{r}
+library(ggplot2)
+library(caret)
+fit_lasso_cv = cv.glmnet(X, y, family = "binomial", alpha = 1)
+cv_5 = trainControl(method = "cv", number = 5)
+lasso_grid = expand.grid(alpha = 1, 
+                         lambda = c(fit_lasso_cv$lambda.min, fit_lasso_cv$lambda.1se))
+lasso_grid
+```
+
+**Use train to fit the lasso**
+```{r}
+sim_data = data.frame(y, X)
+fit_lasso = train(
+  y ~ ., data = sim_data,
+  method = "glmnet",
+  trControl = cv_5,
+  tuneGrid = lasso_grid
+)
+fit_lasso$results
+```
+
+
+**Find the Accuracy and the Standard Error for both Minimum Lambda and Lambda within one standard error**
+```{r}
+fit_lasso_min_accuracy = fit_lasso$results[1, "Accuracy"]
+fit_lasso_1se_accuracy = fit_lasso$results[2, "Accuracy"]
+fit_lasso_min_sd = fit_lasso$results[1, "AccuracySD"]
+fit_lasso_1se_sd = fit_lasso$results[2, "AccuracySD"]
+```
+
+**Find the Ridge grid for minimum lambda and lambda within one standard error**
+```{r}
+fit_ridge_cv = cv.glmnet(X, y, family = "binomial", alpha = 0)
+cv_5 = trainControl(method = "cv", number = 5)
+ridge_grid = expand.grid(alpha = 0, 
+                         lambda = c(fit_ridge_cv$lambda.min, fit_ridge_cv$lambda.1se))
+ridge_grid
+```
+
+**Use train to fit ridge**
+```{r}
+sim_data = data.frame(y, X)
+fit_ridge = train(
+  y ~ ., data = sim_data,
+  method = "glmnet",
+  trControl = cv_5,
+  tuneGrid = ridge_grid
+)
+fit_ridge$results
+
+```
+
+**Find the Accuracy and the Standard Error for both Minimum Lambda and Lambda within one standard error**
+```{r}
+fit_ridge_min_accuracy = fit_ridge$results[1, "Accuracy"]
+fit_ridge_1se_accuracy = fit_ridge$results[2, "Accuracy"]
+fit_ridge_min_sd = fit_ridge$results[1, "AccuracySD"]
+fit_ridge_1se_sd = fit_ridge$results[2, "AccuracySD"]
+```
+
+
+**Train the data using a scaled KNN model**
+```{r}
+sim_data = data.frame(y, X)
+fit_knn = train(
+  y ~ ., data = sim_data,
+  method = "knn",
+  trControl = cv_5,
+  preProcess = c("center", "scale")
+)
+fit_knn$results
+```
+
+
+**Find ross-Validated Accuracies  and Standard Deviations for each KNN**
+```{r}
+knn_5_accuracy = fit_knn$results[1, "Accuracy"]
+knn_5_sd = fit_knn$results[1, "AccuracySD"]
+
+knn_7_accuracy = fit_knn$results[2, "Accuracy"]
+knn_7_sd = fit_knn$results[2, "AccuracySD"]
+
+knn_9_accuracy = fit_knn$results[3, "Accuracy"]
+knn_9_sd = fit_knn$results[3, "AccuracySD"]
+```
+
+**Make all the results into a table**
+```{r}
+library(knitr)
+cross_validated_accuracy = c(fit_lasso_min_accuracy, fit_lasso_1se_accuracy, fit_ridge_min_accuracy, fit_ridge_1se_accuracy, knn_5_accuracy, knn_7_accuracy, knn_9_accuracy)
+
+accuracy_standard_deviation = c(fit_lasso_min_sd, fit_lasso_1se_sd, fit_ridge_min_sd, fit_ridge_1se_sd, knn_5_sd, knn_7_sd, knn_9_sd)
+
+models = c("Lasso Deviance Minimized", "Lasso Deviance Within One Stanard Error", "Ridge Deviance Minimized", "Ridge Deviance Within One Standard Error", "KNN K = 5", "KNN K = 7", "KNN K = 9")
+
+result = data.frame(models, cross_validated_accuracy, accuracy_standard_deviation)
+
+colnames(result) = c("Model", "Cross-Validated Accuracy", "Accuracy Standard Deviations")
+
+kable(result)
+```
+
+
+## Exercise 2
+
+**Load the data**
+```{r}
+set.seed(42)
+library(caret)
+library(ISLR)
+index = createDataPartition(College$Outstate, p = 0.75, list = FALSE)
+college_train_data = College[index, ]
+college_test_data = College[-index, ]
+```
+
+**Find out what the Outstate Tuition for UIUC is**
+```{r}
+uiuc_outstate = College["University of Illinois - Urbana",  "Outstate"]
+uiuc_outstate
+```
+
+
+**Train the data using Additive Linear Model**
+```{r}
+set.seed(678146855)
+college_lm = train(Outstate ~., 
+                      data = college_train_data, 
+                      method = "lm",
+                   trControl = trainControl(method = "cv", number = 5))
+
+x = college_lm$results[, "RMSE"]
+college_lm_rmse = x[which.min(x)]
+```
+
+**Train the data using Elastic Net Model Using Additive Predictors**
+```{r}
+set.seed(678146855)
+cv_5 = trainControl(method = "cv", number = 5)
+
+college_elnet = train(
+  Outstate ~ ., data = college_train_data,
+  method = "glmnet",
+  trControl = cv_5, 
+  tuneLength = 10
+)
+x = college_elnet$results[, "RMSE"]
+college_elnet_rmse = x[which.min(x)]
+```
+
+**Get the bestTune for elnet**
+```{r}
+college_elnet$bestTune
+```
+
+**Train the model using Elastic Net Model with Interactions**
+```{r}
+college_elnet_int = train(
+  Outstate ~ . ^ 2, data = college_train_data,
+  method = "glmnet",
+  trControl = cv_5,
+  tuneLength = 10
+)
+x = college_elnet_int$results[, "RMSE"]
+college_elnet_int_rmse = x[which.min(x)]
+```
+
+**Get the bestTuen for elnet_int**
+```{r}
+college_elnet_int$bestTune
+```
+
+**Train the data using a well-tuned KNN model**
+```{r}
+set.seed(678146855)
+college_knn= train(
+  Outstate ~ .,
+  data = college_train_data,
+  method = "knn",
+  trControl = cv_5
+)
+x = college_knn$results[, "RMSE"]
+college_knn_rmse = x[which.min(x)]
+
+```
+
+**Train the data using a well-tuned KNN model with interactions**
+```{r}
+set.seed(678146855)
+college_knn_int = train(Outstate ~ . ^ 2, data = college_train_data,
+  method = "knn",
+  trControl = cv_5
+  )
+x = college_knn_int$results[, "RMSE"]
+college_knn_int_rmse = x[which.min(x)]
+```
+
+**Calculate the CV RMSE for the scaled KNN**
+```{r}
+set.seed(678146855)
+college_knn_scaled = train(
+  Outstate ~ ., data = college_train_data,
+  method = "knn",
+  trControl = cv_5,
+  preProcess = c("center", "scale")
+)
+x = college_knn_scaled$results[, "RMSE"]
+college_knn_scaled_rmse = x[which.min(x)]
+college_knn_scaled_rmse
+```
+
+**Calculate the CV RMSE for the KNN with interactions**
+```{r}
+set.seed(678146855)
+set.seed(678146855)
+college_knn_int_scaled = train(Outstate ~ . ^ 2, data = college_train_data,
+  method = "knn",
+  trControl = cv_5, 
+  preProcess = c("center", "scale")
+  )
+x = college_knn_int_scaled$results[, "RMSE"]
+college_knn_int_rmse = x[which.min(x)]
+college_knn_int_rmse
+```
+
+
+**Train the model using default Random Forest**
+```{r}
+library(randomForest)
+set.seed(678146855)
+college_rf = train(
+  Outstate ~ .,
+  data = college_train_data,
+  method = "rf",
+  trControl = cv_5
+  
+  )
+x = college_rf$results[, "RMSE"]
+college_rf_rmse = x[which.min(x)]
+```
+
+
+**Calculate the Test RMSEs for all the models**
+```{r}
+library(Metrics)
+get_rmse = function(model, data, response){
+rmse(actual = data[, response], 
+     predicted = predict(model, data))
+}
+model_list = list(college_lm, college_elnet, college_elnet_int, college_knn,  college_knn_int, college_rf)
+
+college_test_rmse = sapply(model_list, get_rmse, data=college_test_data, response="Outstate")
+```
+
+
+
+**Make a table from the result**
+```{r}
+cross_validated_rmse = c(college_lm_rmse, college_elnet_rmse, college_elnet_int_rmse, college_knn_rmse, college_knn_int_rmse, college_rf_rmse)
+models = c("Additive Linear Regression", "Elastic Net Model", "Elastic Net Model with Interactions", "KNN Model", "KNN Interactions", "Random Forest")
+result = data.frame(models, cross_validated_rmse, college_test_rmse)
+colnames(result) = c("Model", "Cross-Validated RMSE", "Test RMSE")
+kable(result)
+```
+
+
+
+
+## Exercise 3
+
+## Leukemia
+
+**(a)** Using dim(leukemia), we can see the dataset has **5148 columns and 72 rows**. Since the first column is the response, so the rest are all predictors. So we can conclude that leukemia data has **5147** predictors and **72** observations. 
+
+**(b)** According to the deviance plot, as the values for **lambda** increase, the **coefficients approach 0**, which is precisely the purpose of the lasso method as it converges to  **a minimum point** for the deviances. So I think that glmnet considered **enough labmda values** for lasso. 
+
+**(c)** According to the deviance plot, as the values for **lambda** increase, the **coefficients approach 0**. However, the deviances don't seem to be **converging to a minimum point**.  So I think that glmnet **hasn't considered enough lambad values** for ridge and **needs to consider more**. 
+
+**(d)** The penalized method **shrinks the coefficient estimates towards zero** to **minimize the residual sums of squares**, whereas KNN makes estimate by **taking in the k-th nearest points and doesn't shrink the coefficients**. 
+
+**(e)** I would **choose Ridge** with the minimized Lambda since it has the **highest accuracy**. It makes sense since it **minimizes the lambda**, which also **minimizes the shrink penalty** used to make the fit small. 
+
+
+## College
+
+**(f)** I prefer **Random Forest** model since it has the **smallest cross-validated and test RMSEs**. 
+
+**(g)** According to our results, the best tuning parameters for **elastic net model** is when **alpha = 0.1 and lambda = 191.6436**, and the best tuning parameters for **elastic net model interaction** is when **alpha = 0.1 and lambda = 220.8521**. It's somewhere in between, closer to **Ridge** since alpha is **closer to 0** . 
+
+**(h)** No I didn't. According to my calculations above, the scaled predictors do have **smaller cross-validated RMSEs**, so yes I **should have scaled the predictors**. 
+
+**(i)** **KNN without interaction works better** because it has a **smaller Test RMSE**. It's better to use **KNN without interaction** as KNN is a **non-parametric method** which **doesn't work well when we include interaction terms**. 
+
+**(j)** According to the description of the College data, the year the dataset is from is **1995**. According to our calculation, the outstate tuition is **7560**. 

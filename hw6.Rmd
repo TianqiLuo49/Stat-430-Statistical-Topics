@@ -1,0 +1,208 @@
+---
+title: "Homework 06"
+author: "Stat 430, Fall 2017"
+date: "Due Friday, October 27, 11:59pm"
+urlcolor: cyan
+---
+***
+
+## Exercise 1
+**Load the data into R studio**
+```{r}
+library(ggplot2)
+library(lattice)
+library(caret)
+library(Metrics)
+
+wisc_train_data = read.csv("wisc-trn.csv")
+wisc_test_data = read.csv("wisc-tst.csv")
+```
+
+
+
+**Train the KNN model with no data preprocessing with k=1,3,5,7...,101**
+```{r}
+set.seed(1337)
+wisc_knn_no_preprocess = train(
+  class ~ .,
+  data = wisc_train_data,
+  method = "knn",
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(k = seq(1, 101, by = 2))
+)
+wisc_knn_no_preprocess
+```
+
+**Plot the cross-validated accuracies as a function of the tuning parameter**
+```{r}
+plot(wisc_knn_no_preprocess)
+```
+
+
+
+**Get the best K value for KNN model with no data preprocessing**
+```{r}
+get_best_result = function(caret_fit) {
+  best_result = caret_fit$results[as.numeric(rownames(caret_fit$bestTune)), ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+get_best_result(wisc_knn_no_preprocess)
+```
+
+**We can see that we choose K = 23 when we use KNN without predictor scaling**
+
+
+**Calculate the test accuracy for KNN without predictor scaling for K = 23**
+```{r}
+library(FNN)
+calc_acc = function(actual, predicted) {
+  mean(actual == predicted)
+}
+
+
+test_acc_no_preprocess = calc_acc(wisc_test_data$class, predict(wisc_knn_no_preprocess, newdata = wisc_test_data))
+
+test_acc_no_preprocess
+```
+**The Test Accuracy for KNN without predictor scaling is 0.86**
+
+
+## Exercise 2
+
+**Train the KNN model with scaled predictors with k = 1,3,5,7,...,101**
+```{r}
+set.seed(1337)
+wisc_knn_scaled = train(
+  class ~ .,
+  data = wisc_train_data,
+  method = "knn",
+  trControl = trainControl(method = "cv", number = 5),
+  preProcess = c("center", "scale"),
+  tuneGrid = expand.grid(k = seq(1, 101, by = 2))
+)
+```
+
+
+**Plot the cross-validated accuracies as a function of the tuning parameter**
+```{r}
+plot(wisc_knn_scaled)
+```
+
+
+
+
+**Get the best K value for KNN model with scaled predictors**
+```{r}
+get_best_result = function(caret_fit) {
+  best_result = caret_fit$results[as.numeric(rownames(caret_fit$bestTune)), ]
+  rownames(best_result) = NULL
+  best_result
+}
+
+get_best_result(wisc_knn_scaled)
+```
+
+**We can see that, the best value of K is 3 when we use KNN with predictor scaling**
+
+
+**Calculate the test accuracy for KNN with scaled predictors for K = 3**
+```{r}
+test_acc_scaled = calc_acc(wisc_test_data$class, predict(wisc_knn_scaled, wisc_test_data))
+test_acc_scaled
+```
+
+**The test accuracy for KNN with scaled predictors is 0.88**
+
+
+## Exercise 3
+**Train a random forest using all the available predictors, no data preprocessing, and set mtry between 1 and 10**
+```{r}
+library(randomForest)
+set.seed(1337)
+wisc_random_forest = train(
+  class ~ .,
+  data = wisc_train_data,
+  method = "rf",
+  trControl = trainControl(method = "cv", number = 5),
+  tuneGrid = expand.grid(mtry = seq(1, 10, by = 1))
+  )
+```
+
+**Extract the mtry and Accuracy from the results and make them into a table**
+```{r}
+library(knitr)
+accuracy = wisc_random_forest$results[, "Accuracy"]
+mtry = wisc_random_forest$results[,"mtry"]
+result = data.frame(mtry, accuracy)
+colnames(result) = c("mtry", "Accuracies")
+kable(result)
+
+```
+
+
+**Make predictions using the random forest model, compare it with the actual test data, and make the comparison table into a confusion Matrix**
+```{r}
+wisc_random_forest_pred = predict(wisc_random_forest, newdata = wisc_test_data)
+test_tab = table(predicted = wisc_random_forest_pred, actual = wisc_test_data$class)
+test_con_mat = confusionMatrix(test_tab, positive = "M")
+```
+
+**Get the results from the predictions using wisc_random_forest**
+```{r}
+head(predict(wisc_random_forest, newdata = wisc_test_data, type = "prob"), n = 10)
+```
+
+
+**Find the test sensitivity and test specificity with the confusion Matrix**
+```{r}
+c(test_con_mat$overall["Accuracy"], 
+  test_con_mat$byClass["Sensitivity"], 
+  test_con_mat$byClass["Specificity"])
+```
+
+
+
+## Exercise 4
+
+**(a)**We choose **K=23** for KNN without predictor scaling because not only does it has the best accuracy, but it also overfits the model, which makes it less biased. 
+
+**(b)**According to our calculation, the cross-validated accuracy for KNN without predictor scaling is **0.8976664**.
+
+**(c)**According to our calculation, the test accuracy for KNN without predictor scaling is **0.86**.
+
+**(d)** We choose **K=3** for KNN with predictor scaling because it has the best accuracy. 
+
+**(e)** According to our calculation, the cross-validaed accuracy for KNN with predictor scaling is **0.9552276**.
+
+**(f)** The test accuracy for KNN with predictor scaling is **0.88**. 
+
+**(g)** **KNN performs better with predictor scaling** it has a **higher test accuracy**. 
+
+**(h)** We choose **mtry = 4** for the random forest model because that's when it has the **highest accuracy**. 
+
+**(i)** According our results for the first 10 observations, the probability that the 10th observation of test data is a cancerous tumor is **0.040**. 
+
+**(j)** According to our confusion matrix, the test sensitivity is **0.8750000**. 
+
+**(k)** According to our confusion matrix, the test specificity is **0.9666667**. 
+
+**(l)** According to our results, **random Forest performs better** than all the KNN models because it has a **higher test accuracy** than the two. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
